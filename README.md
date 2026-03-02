@@ -104,7 +104,7 @@ Account types are stored as uppercase strings: `CHECKING`, `CREDITCARD`, `SAVING
 
 ```bash
 git clone https://github.com/dweekly/quicken-mac-mcp.git
-cd family-finance
+cd quicken-mac-mcp
 npm install
 npm test          # run tests
 npm run lint      # eslint

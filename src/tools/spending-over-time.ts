@@ -3,14 +3,14 @@
  *
  * Uses SQLite's strftime to bucket transactions by YYYY-MM month.
  * The Core Data timestamp is converted to Unix time inline in the SQL
- * (adding the 978307200 offset) so strftime can process it.
+ * (adding CORE_DATA_EPOCH_OFFSET) so strftime can process it.
  *
  * When group_by_category is true, results are further broken down by
  * parent category within each month.
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData } from "../db.js";
+import { isoToCoreData, CORE_DATA_EPOCH_OFFSET } from "../db.js";
 
 interface SpendingOverTimeArgs {
   start_date: string;
@@ -35,7 +35,7 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
 
   const sql = `
     SELECT
-      strftime('%Y-%m', t.ZPOSTEDDATE + 978307200, 'unixepoch') as month${categorySelect},
+      strftime('%Y-%m', t.ZPOSTEDDATE + ${CORE_DATA_EPOCH_OFFSET}, 'unixepoch') as month${categorySelect},
       SUM(s.ZAMOUNT) as total_amount,
       COUNT(*) as transaction_count
     FROM ZTRANSACTION t

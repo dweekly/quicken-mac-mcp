@@ -88,6 +88,13 @@ function queryDbQuotes(db: Database.Database): Map<string, DbQuote> {
   return map;
 }
 
+/**
+ * Fetch current market prices from Yahoo Finance for a list of ticker symbols.
+ *
+ * Uses the v7 quote endpoint with a 10-second timeout. Returns a map of
+ * ticker -> regularMarketPrice. Tickers not found in the response are
+ * absent from the map. Throws on network error or non-200 response.
+ */
 export async function fetchLiveQuotes(tickers: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (tickers.length === 0) return map;

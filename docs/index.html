@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>quicken-mac-mcp — Claude MCP server for Quicken For Mac</title>
+  <meta name="description" content="Read-only MCP server that gives Claude access to your Quicken For Mac financial data. Query accounts, transactions, spending, and investments.">
+  <link rel="canonical" href="https://dweekly.github.io/quicken-mac-mcp/">
+  <meta name="theme-color" content="#fafafa">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+
+  <!-- OpenGraph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="quicken-mac-mcp">
+  <meta property="og:description" content="Read-only MCP server that gives Claude access to your Quicken For Mac financial data. Query accounts, transactions, spending, and investments.">
+  <meta property="og:url" content="https://dweekly.github.io/quicken-mac-mcp/">
+  <meta property="og:site_name" content="quicken-mac-mcp">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="quicken-mac-mcp">
+  <meta name="twitter:description" content="Read-only MCP server that gives Claude access to your Quicken For Mac financial data.">
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "quicken-mac-mcp",
+    "description": "Read-only MCP server that gives Claude access to your Quicken For Mac financial data. Query accounts, transactions, spending, and investments.",
+    "url": "https://dweekly.github.io/quicken-mac-mcp/",
+    "codeRepository": "https://github.com/dweekly/quicken-mac-mcp",
+    "programmingLanguage": "TypeScript",
+    "runtimePlatform": "Node.js",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "David Weekly",
+      "url": "https://github.com/dweekly"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS"
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fafafa;
+      margin: 0;
+      padding: 2rem 1.25rem;
+    }
+    .container { max-width: 740px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin: 0 0 0.25rem; }
+    h2 {
+      font-size: 1.25rem;
+      margin: 2.5rem 0 0.75rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+    p, li { color: #333; }
+    a { color: #0969da; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .tagline { color: #555; font-size: 1.1rem; margin: 0 0 1rem; }
+    .links { margin-bottom: 2rem; }
+    .links a {
+      display: inline-block;
+      margin-right: 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+    .badge {
+      display: inline-block;
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+      vertical-align: middle;
+      margin-left: 0.5rem;
+    }
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.9em;
+      background: #f0f0f0;
+      padding: 0.15em 0.35em;
+      border-radius: 3px;
+    }
+    pre {
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+    pre code { background: none; padding: 0; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th { font-weight: 600; background: #f5f5f5; }
+    ul { padding-left: 1.5rem; }
+    li { margin-bottom: 0.25rem; }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e0e0e0;
+      color: #777;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 600px) {
+      body { padding: 1.25rem 1rem; }
+      h1 { font-size: 1.5rem; }
+      pre { padding: 0.75rem; font-size: 0.85rem; }
+      th, td { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+<main class="container">
+
+  <h1>quicken-mac-mcp <span class="badge">read-only</span></h1>
+  <p class="tagline">An MCP server that gives Claude read-only access to your Quicken For Mac financial data.</p>
+  <nav class="links" aria-label="Project links">
+    <a href="https://github.com/dweekly/quicken-mac-mcp">GitHub</a>
+    <a href="https://www.npmjs.com/package/quicken-mac-mcp">npm</a>
+  </nav>
+
+  <h2>What it does</h2>
+  <p>
+    <a href="https://quicken.com/mac">Quicken For Mac</a> stores your financial data in a Core Data SQLite
+    database inside a <code>.quicken</code> bundle in your Documents folder. This
+    <a href="https://modelcontextprotocol.io/">MCP server</a> reads that database directly and
+    exposes 8 query tools to Claude &mdash; letting you ask questions about your accounts,
+    transactions, spending, and investments in natural language.
+  </p>
+  <p>The database is <strong>always opened read-only</strong>. Your Quicken data is never modified.</p>
+
+  <h2>Tools</h2>
+  <table>
+    <thead>
+      <tr><th>Tool</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>list_accounts</code></td>
+        <td>List accounts with name, type, and active/closed status. Optional type filter.</td>
+      </tr>
+      <tr>
+        <td><code>list_categories</code></td>
+        <td>List category tags with parent hierarchy. Filter by expense or income.</td>
+      </tr>
+      <tr>
+        <td><code>query_transactions</code></td>
+        <td>Query transactions with filters: date range, account types/names, amount range, payee search, category. Returns one row per split entry.</td>
+      </tr>
+      <tr>
+        <td><code>spending_by_category</code></td>
+        <td>Aggregate spending by category or parent category for a date range.</td>
+      </tr>
+      <tr>
+        <td><code>spending_over_time</code></td>
+        <td>Monthly spending totals, optionally broken down by category.</td>
+      </tr>
+      <tr>
+        <td><code>search_payees</code></td>
+        <td>Search payees by name with transaction counts.</td>
+      </tr>
+      <tr>
+        <td><code>list_portfolio</code></td>
+        <td>List investment holdings with shares, cost basis, and optional live or stored price quotes.</td>
+      </tr>
+      <tr>
+        <td><code>raw_query</code></td>
+        <td>Run arbitrary SELECT queries against the database (500-row limit).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Quick start</h2>
+
+  <h3>Claude Code</h3>
+  <p>Add to your project's <code>.mcp.json</code>:</p>
+  <pre><code>{
+  "mcpServers": {
+    "quicken": {
+      "command": "npx",
+      "args": ["-y", "quicken-mac-mcp"]
+    }
+  }
+}</code></pre>
+
+  <h3>Claude Desktop</h3>
+  <p>Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+  <pre><code>{
+  "mcpServers": {
+    "quicken": {
+      "command": "npx",
+      "args": ["-y", "quicken-mac-mcp"]
+    }
+  }
+}</code></pre>
+  <p>Restart Claude Desktop and you'll see a hammer icon with 8 tools available.</p>
+
+  <h3>Custom database path</h3>
+  <p>
+    By default the server auto-detects your Quicken database by scanning <code>~/Documents</code>
+    for <code>.quicken</code> bundles. If you have multiple Quicken files or your bundle is
+    elsewhere, set the <code>QUICKEN_DB_PATH</code> environment variable:
+  </p>
+  <pre><code>{
+  "mcpServers": {
+    "quicken": {
+      "command": "npx",
+      "args": ["-y", "quicken-mac-mcp"],
+      "env": {
+        "QUICKEN_DB_PATH": "/path/to/YourFile.quicken/data"
+      }
+    }
+  }
+}</code></pre>
+
+  <h2>Example prompts</h2>
+  <ul>
+    <li>"List my accounts"</li>
+    <li>"What did I spend on groceries last month?"</li>
+    <li>"Show my spending by category for 2024"</li>
+    <li>"How has my monthly spending changed over the past year?"</li>
+    <li>"Find all transactions from Costco over $100"</li>
+    <li>"What are my top 10 payees by transaction count?"</li>
+    <li>"Compare my food spending in 2024 vs 2025"</li>
+    <li>"Show my investment portfolio with current prices"</li>
+  </ul>
+
+  <h2>Database schema</h2>
+  <p>Quicken For Mac uses Core Data with these key tables:</p>
+  <table>
+    <thead>
+      <tr><th>Table</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>ZACCOUNT</code></td><td>Bank accounts, credit cards, investment accounts</td></tr>
+      <tr><td><code>ZTRANSACTION</code></td><td>Individual transactions</td></tr>
+      <tr><td><code>ZCASHFLOWTRANSACTIONENTRY</code></td><td>Split line items (where categories live)</td></tr>
+      <tr><td><code>ZTAG</code> (Z_ENT=79)</td><td>Category tags with parent hierarchy</td></tr>
+      <tr><td><code>ZUSERPAYEE</code></td><td>Payee names</td></tr>
+      <tr><td><code>ZLOT</code> / <code>ZPOSITION</code></td><td>Investment lots and positions</td></tr>
+      <tr><td><code>ZSECURITY</code></td><td>Securities (stocks, funds) with tickers</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Dates use <strong>Core Data epoch</strong> (seconds since 2001-01-01). The server handles all
+    date conversion automatically &mdash; you pass ISO 8601 dates, it returns ISO 8601 dates.
+  </p>
+  <p>
+    Account types are stored as uppercase strings: <code>CHECKING</code>, <code>CREDITCARD</code>,
+    <code>SAVINGS</code>, <code>MORTGAGE</code>, <code>RETIREMENTIRA</code>, <code>ASSET</code>,
+    <code>LIABILITY</code>, <code>LOAN</code>, etc. The tools accept any casing.
+  </p>
+
+  <h2>Development</h2>
+  <pre><code>git clone https://github.com/dweekly/quicken-mac-mcp.git
+cd quicken-mac-mcp
+npm install
+npm test          # run tests
+npm run lint      # eslint
+npm run format    # prettier
+npm run dev       # run server locally</code></pre>
+
+  <h3>Docker</h3>
+  <pre><code>docker build -t quicken-mac-mcp .
+docker run --rm -v ~/Documents/YourFile.quicken:/data:ro quicken-mac-mcp</code></pre>
+
+  <footer>
+    MIT License &middot; <a href="https://github.com/dweekly">David Weekly</a>
+  </footer>
+
+</main>
+</body>
+</html>

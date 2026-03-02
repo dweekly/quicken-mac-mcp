@@ -17,7 +17,7 @@ import { join, resolve } from "path";
  * (1970-01-01) and the Core Data reference date (2001-01-01).
  * To convert: unixTimestamp = coreDataTimestamp + CORE_DATA_EPOCH_OFFSET
  */
-const CORE_DATA_EPOCH_OFFSET = 978307200;
+export const CORE_DATA_EPOCH_OFFSET = 978307200;
 
 /**
  * Auto-detect a Quicken database by scanning ~/Documents for .quicken bundles.
