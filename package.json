@@ -1,0 +1,56 @@
+{
+  "name": "quicken-mac-mcp",
+  "version": "1.0.0",
+  "description": "MCP server providing read-only access to Quicken For Mac financial data via Claude",
+  "type": "module",
+  "license": "MIT",
+  "author": "David Weekly",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dweekly/quicken-mac-mcp.git"
+  },
+  "homepage": "https://github.com/dweekly/quicken-mac-mcp#readme",
+  "keywords": [
+    "quicken",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "finance",
+    "sqlite",
+    "read-only"
+  ],
+  "bin": {
+    "quicken-mac-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src/",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "better-sqlite3": "^11.8.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.5",
+    "eslint": "^10.0.2",
+    "prettier": "^3.8.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.56.1",
+    "vitest": "^4.0.18"
+  }
+}
