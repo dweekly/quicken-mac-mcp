@@ -6,7 +6,7 @@
   "description": "Read-only access to your Quicken For Mac financial data",
   "author": { "name": "David Weekly", "url": "https://github.com/dweekly" },
   "homepage": "https://dweekly.github.io/quicken-mac-mcp/",
-  "repository": "https://github.com/dweekly/quicken-mac-mcp",
+  "repository": { "type": "git", "url": "https://github.com/dweekly/quicken-mac-mcp.git" },
   "icon": "icon.png",
   "license": "MIT",
   "server": {
