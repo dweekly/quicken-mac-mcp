@@ -11,12 +11,12 @@
  */
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { openDatabase } from "./db.js";
+import { createDbAccessor } from "./db.js";
 import { createServer } from "./server.js";
 
 const dbPath = process.argv[2] || undefined;
-const db = openDatabase(dbPath);
-const server = createServer(db);
+const getDb = createDbAccessor(dbPath);
+const server = createServer(getDb);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

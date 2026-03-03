@@ -28,7 +28,45 @@ function sanitizeError(err: any): string {
   return msg.replace(/(?:\/[\w.-]+){2,}/g, "<path>");
 }
 
-export function createServer(db: Database.Database): McpServer {
+/**
+ * Wrap a tool handler with database access and error handling.
+ * Calls getDb() lazily so the server can start without a valid database.
+ * On failure, returns an MCP error response with setup instructions.
+ */
+function safeTool<A>(
+  getDb: () => Database.Database,
+  fn: (db: Database.Database, args: A) => unknown
+) {
+  return (args: A) => {
+    try {
+      return jsonContent(fn(getDb(), args));
+    } catch (err: any) {
+      return {
+        isError: true as const,
+        content: [{ type: "text" as const, text: `Error: ${sanitizeError(err)}` }],
+      };
+    }
+  };
+}
+
+/** Async variant of safeTool for tools that return promises. */
+function safeToolAsync<A>(
+  getDb: () => Database.Database,
+  fn: (db: Database.Database, args: A) => Promise<unknown>
+) {
+  return async (args: A) => {
+    try {
+      return jsonContent(await fn(getDb(), args));
+    } catch (err: any) {
+      return {
+        isError: true as const,
+        content: [{ type: "text" as const, text: `Error: ${sanitizeError(err)}` }],
+      };
+    }
+  };
+}
+
+export function createServer(getDb: () => Database.Database): McpServer {
   const server = new McpServer(
     {
       name: "quicken-mac-mcp",
@@ -54,6 +92,12 @@ export function createServer(db: Database.Database): McpServer {
         "- Account types are case-insensitive. Common types: checking, creditcard, savings, mortgage, retirementira, asset, liability, loan.",
         "- spending_by_category and spending_over_time default to checking + creditcard accounts only. Include other types explicitly if the user asks about all spending.",
         "- query_transactions returns one row per split entry — a single transaction may produce multiple rows if split across categories.",
+        "",
+        "## Database auto-detection",
+        "- If QUICKEN_DB_PATH is not set, the server auto-detects by picking the most recently modified .quicken bundle in ~/Documents.",
+        "- On first use, confirm with the user which Quicken file they want to use. Call list_accounts and show the user the detected file's accounts so they can verify it's the right one.",
+        "- If the user has multiple Quicken files or wants a specific one, instruct them to set the QUICKEN_DB_PATH environment variable:",
+        "    claude mcp add quicken -e QUICKEN_DB_PATH=~/Documents/YourFile.quicken/data -- npx -y quicken-mac-mcp",
       ].join("\n"),
     }
   );
@@ -69,7 +113,7 @@ export function createServer(db: Database.Database): McpServer {
           'Filter by account type, e.g. "checking", "creditcard", "savings", "mortgage"'
         ),
     },
-    (args) => jsonContent(listAccounts(db, args))
+    safeTool(getDb, listAccounts)
   );
 
   server.tool(
@@ -81,7 +125,7 @@ export function createServer(db: Database.Database): McpServer {
         .optional()
         .describe('Filter by category type: "expense" or "income"'),
     },
-    (args) => jsonContent(listCategories(db, args))
+    safeTool(getDb, listCategories)
   );
 
   server.tool(
@@ -113,7 +157,7 @@ export function createServer(db: Database.Database): McpServer {
         .describe("Filter by category or parent category name (LIKE match)"),
       limit: z.number().optional().describe("Max rows to return (default 100, max 1000)"),
     },
-    (args) => jsonContent(queryTransactions(db, args))
+    safeTool(getDb, queryTransactions)
   );
 
   server.tool(
@@ -133,7 +177,7 @@ export function createServer(db: Database.Database): McpServer {
           'Group by "category" (subcategory level) or "parent_category" (top-level). Default: "parent_category"'
         ),
     },
-    (args) => jsonContent(spendingByCategory(db, args))
+    safeTool(getDb, spendingByCategory)
   );
 
   server.tool(
@@ -151,7 +195,7 @@ export function createServer(db: Database.Database): McpServer {
         .optional()
         .describe("If true, break down each month by parent category (default: false)"),
     },
-    (args) => jsonContent(spendingOverTime(db, args))
+    safeTool(getDb, spendingOverTime)
   );
 
   server.tool(
@@ -164,7 +208,7 @@ export function createServer(db: Database.Database): McpServer {
         .optional()
         .describe("Max results to return (default 50, max 500)"),
     },
-    (args) => jsonContent(searchPayees(db, args))
+    safeTool(getDb, searchPayees)
   );
 
   server.tool(
@@ -182,16 +226,7 @@ export function createServer(db: Database.Database): McpServer {
           "Fetch live prices from Yahoo Finance (default: false, uses stored Quicken quotes). Note: sends your ticker symbols to Yahoo's API."
         ),
     },
-    async (args) => {
-      try {
-        return jsonContent(await listPortfolio(db, args));
-      } catch (err: any) {
-        return {
-          isError: true,
-          content: [{ type: "text" as const, text: `Error: ${sanitizeError(err)}` }],
-        };
-      }
-    }
+    safeToolAsync(getDb, listPortfolio)
   );
 
   server.tool(
@@ -200,16 +235,7 @@ export function createServer(db: Database.Database): McpServer {
     {
       sql: z.string().describe("SQL SELECT query to execute"),
     },
-    (args) => {
-      try {
-        return jsonContent(rawQuery(db, args));
-      } catch (err: any) {
-        return {
-          isError: true,
-          content: [{ type: "text" as const, text: `Error: ${sanitizeError(err)}` }],
-        };
-      }
-    }
+    safeTool(getDb, rawQuery)
   );
 
   return server;

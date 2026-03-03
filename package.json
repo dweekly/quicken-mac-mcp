@@ -1,6 +1,6 @@
 {
   "name": "quicken-mac-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server providing read-only access to Quicken For Mac financial data via Claude",
   "type": "module",
   "license": "MIT",
