@@ -1,5 +1,10 @@
 # quicken-mac-mcp
 
+[![npm version](https://img.shields.io/npm/v/quicken-mac-mcp)](https://www.npmjs.com/package/quicken-mac-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/dweekly/quicken-mac-mcp)](https://github.com/dweekly/quicken-mac-mcp/releases)
+[![macOS only](https://img.shields.io/badge/platform-macOS-lightgrey)](https://github.com/dweekly/quicken-mac-mcp)
+
 An [MCP server](https://modelcontextprotocol.io/) that gives Claude read-only access to your [Quicken For Mac](https://www.quicken.com/mac) financial data. Ask Claude about your accounts, transactions, spending by category, monthly trends, and more.
 
 The database is **always opened read-only** — your Quicken data is never modified.
