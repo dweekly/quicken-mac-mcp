@@ -1,0 +1,58 @@
+{
+  "name": "io.github.dweekly/quicken-mac-mcp",
+  "description": "Read-only access to Quicken For Mac financial data. Query transactions, analyze spending by category, view investment portfolios, and explore account data through 8 specialized tools. Requires macOS with Quicken For Mac installed.",
+  "repository": {
+    "url": "https://github.com/dweekly/quicken-mac-mcp",
+    "source": "github"
+  },
+  "version_detail": {
+    "version": "1.0.3"
+  },
+  "packages": [
+    {
+      "registry_name": "npm",
+      "name": "quicken-mac-mcp",
+      "version": "1.0.3",
+      "runtime": "node",
+      "transport": [
+        {
+          "type": "stdio"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "list_accounts",
+      "description": "List all Quicken accounts with name, type, and active/closed status"
+    },
+    {
+      "name": "list_categories",
+      "description": "List all category tags with parent category hierarchy"
+    },
+    {
+      "name": "query_transactions",
+      "description": "Query transactions with flexible date, amount, payee, and category filters"
+    },
+    {
+      "name": "spending_by_category",
+      "description": "Aggregate spending grouped by category or parent category"
+    },
+    {
+      "name": "spending_over_time",
+      "description": "Monthly spending totals with optional category breakdown"
+    },
+    {
+      "name": "search_payees",
+      "description": "Search payees by name with transaction counts"
+    },
+    {
+      "name": "list_portfolio",
+      "description": "List investment holdings with optional live Yahoo Finance quotes"
+    },
+    {
+      "name": "raw_query",
+      "description": "Execute arbitrary read-only SQL queries against the Quicken database"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 {
   "name": "quicken-mac-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
+  "mcpName": "io.github.dweekly/quicken-mac-mcp",
   "description": "MCP server providing read-only access to Quicken For Mac financial data via Claude",
   "type": "module",
   "license": "MIT",
