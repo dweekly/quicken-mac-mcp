@@ -14,11 +14,9 @@
       "name": "quicken-mac-mcp",
       "version": "1.0.3",
       "runtime": "node",
-      "transport": [
-        {
-          "type": "stdio"
-        }
-      ]
+      "transport": {
+        "type": "stdio"
+      }
     }
   ],
   "tools": [
