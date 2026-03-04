@@ -8,7 +8,7 @@
   "author": "David Weekly",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dweekly/quicken-mac-mcp.git"
+    "url": "git+https://github.com/dweekly/quicken-mac-mcp.git"
   },
   "homepage": "https://github.com/dweekly/quicken-mac-mcp#readme",
   "keywords": [
