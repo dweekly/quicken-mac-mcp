@@ -12,7 +12,7 @@
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData, coreDataToIso } from "../db.js";
+import { isoToCoreData, coreDataToIso, getCategoryTagEntityId } from "../db.js";
 
 interface QueryTransactionsArgs {
   start_date?: string;
@@ -27,6 +27,7 @@ interface QueryTransactionsArgs {
 }
 
 export function queryTransactions(db: Database.Database, args: QueryTransactionsArgs) {
+  const categoryTagEntityId = getCategoryTagEntityId(db);
   const conditions: string[] = [];
   const params: any[] = [];
 
@@ -84,7 +85,7 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
     LEFT JOIN ZUSERPAYEE p ON t.ZUSERPAYEE = p.Z_PK
     LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
-    LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = 79
+    LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
     ORDER BY t.ZPOSTEDDATE DESC

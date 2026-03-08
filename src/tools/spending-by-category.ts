@@ -8,7 +8,7 @@
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData } from "../db.js";
+import { isoToCoreData, getCategoryTagEntityId } from "../db.js";
 
 interface SpendingByCategoryArgs {
   start_date: string;
@@ -18,6 +18,7 @@ interface SpendingByCategoryArgs {
 }
 
 export function spendingByCategory(db: Database.Database, args: SpendingByCategoryArgs) {
+  const categoryTagEntityId = getCategoryTagEntityId(db);
   // Normalize account types to uppercase to match Quicken's storage format
   const accountTypes = (args.account_types || ["checking", "creditcard"]).map((t) =>
     t.toUpperCase()
@@ -39,7 +40,7 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
     LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
-    LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = 79
+    LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE t.ZPOSTEDDATE >= ?
       AND t.ZPOSTEDDATE <= ?

@@ -10,7 +10,7 @@
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData, CORE_DATA_EPOCH_OFFSET } from "../db.js";
+import { isoToCoreData, CORE_DATA_EPOCH_OFFSET, getCategoryTagEntityId } from "../db.js";
 
 interface SpendingOverTimeArgs {
   start_date: string;
@@ -20,6 +20,7 @@ interface SpendingOverTimeArgs {
 }
 
 export function spendingOverTime(db: Database.Database, args: SpendingOverTimeArgs) {
+  const categoryTagEntityId = getCategoryTagEntityId(db);
   const accountTypes = (args.account_types || ["checking", "creditcard"]).map((t) =>
     t.toUpperCase()
   );
@@ -41,7 +42,7 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
     LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
-    LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = 79
+    LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE t.ZPOSTEDDATE >= ?
       AND t.ZPOSTEDDATE <= ?
