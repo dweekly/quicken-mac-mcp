@@ -40,7 +40,9 @@ function isDatabaseDecrypted(): boolean {
     const db = new Database(resolvedPath, { readonly: true });
     try {
       const row = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ZACCOUNT' LIMIT 1")
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='ZACCOUNT' LIMIT 1"
+        )
         .get();
       return !!row;
     } finally {
@@ -200,6 +202,12 @@ export function createServer(getDb: () => Database.Database): McpServer {
         .array(z.string())
         .optional()
         .describe('Account types to include (default: ["checking", "creditcard"])'),
+      account_names: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Filter by specific account names (overrides account_types when provided)"
+        ),
       group_by: z
         .enum(["category", "parent_category"])
         .optional()
@@ -220,6 +228,12 @@ export function createServer(getDb: () => Database.Database): McpServer {
         .array(z.string())
         .optional()
         .describe('Account types to include (default: ["checking", "creditcard"])'),
+      account_names: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Filter by specific account names (overrides account_types when provided)"
+        ),
       group_by_category: z
         .boolean()
         .optional()
