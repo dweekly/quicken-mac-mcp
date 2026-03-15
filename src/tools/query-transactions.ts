@@ -31,12 +31,15 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
   const conditions: string[] = [];
   const params: any[] = [];
 
+  // Fall back to ZENTEREDDATE when ZPOSTEDDATE is null (e.g., CSV-imported accounts)
+  const dateExpr = "COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE)";
+
   if (args.start_date) {
-    conditions.push("t.ZPOSTEDDATE >= ?");
+    conditions.push(`${dateExpr} >= ?`);
     params.push(isoToCoreData(args.start_date));
   }
   if (args.end_date) {
-    conditions.push("t.ZPOSTEDDATE <= ?");
+    conditions.push(`${dateExpr} <= ?`);
     params.push(isoToCoreData(args.end_date));
   }
   if (args.account_types?.length) {
@@ -79,7 +82,7 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
       cat.ZNAME as category,
       parent_cat.ZNAME as parent_category,
       s.ZAMOUNT as amount,
-      t.ZPOSTEDDATE as posted_date_raw,
+      COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) as posted_date_raw,
       t.ZNOTE as note
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
@@ -88,7 +91,7 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
-    ORDER BY t.ZPOSTEDDATE DESC
+    ORDER BY COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) DESC
     LIMIT ?
   `;
   params.push(limit);

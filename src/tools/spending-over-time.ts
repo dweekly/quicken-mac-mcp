@@ -16,15 +16,12 @@ interface SpendingOverTimeArgs {
   start_date: string;
   end_date: string;
   account_types?: string[];
+  account_names?: string[];
   group_by_category?: boolean;
 }
 
 export function spendingOverTime(db: Database.Database, args: SpendingOverTimeArgs) {
   const categoryTagEntityId = getCategoryTagEntityId(db);
-  const accountTypes = (args.account_types || ["checking", "creditcard"]).map((t) =>
-    t.toUpperCase()
-  );
-  const placeholders = accountTypes.map(() => "?").join(",");
 
   // Conditionally add category column to SELECT and GROUP BY
   const categorySelect = args.group_by_category
@@ -34,9 +31,26 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
     ? ", COALESCE(parent_cat.ZNAME, cat.ZNAME)"
     : "";
 
+  // Fall back to ZENTEREDDATE when ZPOSTEDDATE is null (e.g., CSV-imported accounts)
+  const dateExpr = "COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE)";
+
+  // account_names takes precedence over account_types when provided
+  let accountFilter: string;
+  let accountParams: any[];
+  if (args.account_names?.length) {
+    accountFilter = `a.ZNAME IN (${args.account_names.map(() => "?").join(",")})`;
+    accountParams = [...args.account_names];
+  } else {
+    const accountTypes = (args.account_types || ["checking", "creditcard"]).map((t) =>
+      t.toUpperCase()
+    );
+    accountFilter = `UPPER(a.ZTYPENAME) IN (${accountTypes.map(() => "?").join(",")})`;
+    accountParams = [...accountTypes];
+  }
+
   const sql = `
     SELECT
-      strftime('%Y-%m', t.ZPOSTEDDATE + ${CORE_DATA_EPOCH_OFFSET}, 'unixepoch') as month${categorySelect},
+      strftime('%Y-%m', ${dateExpr} + ${CORE_DATA_EPOCH_OFFSET}, 'unixepoch') as month${categorySelect},
       SUM(s.ZAMOUNT) as total_amount,
       COUNT(*) as transaction_count
     FROM ZTRANSACTION t
@@ -44,9 +58,9 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
     LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
-    WHERE t.ZPOSTEDDATE >= ?
-      AND t.ZPOSTEDDATE <= ?
-      AND UPPER(a.ZTYPENAME) IN (${placeholders})
+    WHERE ${dateExpr} >= ?
+      AND ${dateExpr} <= ?
+      AND ${accountFilter}
       AND s.ZAMOUNT IS NOT NULL
     GROUP BY month${categoryGroup}
     ORDER BY month ASC${args.group_by_category ? ", total_amount ASC" : ""}
@@ -55,7 +69,7 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
   const params = [
     isoToCoreData(args.start_date),
     isoToCoreData(args.end_date),
-    ...accountTypes,
+    ...accountParams,
   ];
 
   const rows = db.prepare(sql).all(...params);

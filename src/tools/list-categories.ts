@@ -1,7 +1,7 @@
 /**
  * list_categories tool — List all Quicken category tags.
  *
- * Queries the ZTAG table for entries with Z_ENT=79 (CategoryTag entities).
+ * Queries the ZTAG table for CategoryTag entities (Z_ENT looked up at runtime).
  * Categories form a two-level hierarchy: parent categories (e.g., "Food & Dining")
  * and subcategories (e.g., "Groceries", "Restaurants") linked via ZPARENTCATEGORY.
  * ZTYPE distinguishes expense (1) from income (2) categories.

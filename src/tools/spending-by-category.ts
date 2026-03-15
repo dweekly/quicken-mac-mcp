@@ -14,15 +14,12 @@ interface SpendingByCategoryArgs {
   start_date: string;
   end_date: string;
   account_types?: string[];
+  account_names?: string[];
   group_by?: "category" | "parent_category";
 }
 
 export function spendingByCategory(db: Database.Database, args: SpendingByCategoryArgs) {
   const categoryTagEntityId = getCategoryTagEntityId(db);
-  // Normalize account types to uppercase to match Quicken's storage format
-  const accountTypes = (args.account_types || ["checking", "creditcard"]).map((t) =>
-    t.toUpperCase()
-  );
   const groupBy = args.group_by || "parent_category";
 
   // When grouping by parent_category, fall back to the subcategory name
@@ -30,7 +27,22 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
   const categoryExpr =
     groupBy === "parent_category" ? "COALESCE(parent_cat.ZNAME, cat.ZNAME)" : "cat.ZNAME";
 
-  const placeholders = accountTypes.map(() => "?").join(",");
+  // Fall back to ZENTEREDDATE when ZPOSTEDDATE is null (e.g., CSV-imported accounts)
+  const dateExpr = "COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE)";
+
+  // account_names takes precedence over account_types when provided
+  let accountFilter: string;
+  let accountParams: any[];
+  if (args.account_names?.length) {
+    accountFilter = `a.ZNAME IN (${args.account_names.map(() => "?").join(",")})`;
+    accountParams = [...args.account_names];
+  } else {
+    const accountTypes = (args.account_types || ["checking", "creditcard"]).map((t) =>
+      t.toUpperCase()
+    );
+    accountFilter = `UPPER(a.ZTYPENAME) IN (${accountTypes.map(() => "?").join(",")})`;
+    accountParams = [...accountTypes];
+  }
 
   const sql = `
     SELECT
@@ -42,9 +54,9 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
     LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
-    WHERE t.ZPOSTEDDATE >= ?
-      AND t.ZPOSTEDDATE <= ?
-      AND UPPER(a.ZTYPENAME) IN (${placeholders})
+    WHERE ${dateExpr} >= ?
+      AND ${dateExpr} <= ?
+      AND ${accountFilter}
       AND s.ZAMOUNT IS NOT NULL
     GROUP BY ${categoryExpr}
     ORDER BY total_amount ASC
@@ -53,7 +65,7 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
   const params = [
     isoToCoreData(args.start_date),
     isoToCoreData(args.end_date),
-    ...accountTypes,
+    ...accountParams,
   ];
 
   const rows = db.prepare(sql).all(...params);
