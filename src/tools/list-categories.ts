@@ -8,8 +8,10 @@
  */
 
 import type Database from "better-sqlite3";
+import { getCategoryTagEntityId } from "../db.js";
 
 export function listCategories(db: Database.Database, args: { type?: string }) {
+  const categoryTagEntityId = getCategoryTagEntityId(db);
   let sql = `
     SELECT
       c.Z_PK as id,
@@ -19,7 +21,7 @@ export function listCategories(db: Database.Database, args: { type?: string }) {
       p.ZNAME as parent_category
     FROM ZTAG c
     LEFT JOIN ZTAG p ON c.ZPARENTCATEGORY = p.Z_PK
-    WHERE c.Z_ENT = 79
+    WHERE c.Z_ENT = ${categoryTagEntityId}
   `;
   const params: number[] = [];
 

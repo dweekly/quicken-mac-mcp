@@ -127,3 +127,31 @@ export function coreDataToIso(ts: number): string {
   const unix = ts + CORE_DATA_EPOCH_OFFSET;
   return new Date(unix * 1000).toISOString().split("T")[0];
 }
+
+/**
+ * Look up the Core Data entity ID for CategoryTag from the Z_PRIMARYKEY table.
+ *
+ * Core Data assigns entity IDs (Z_ENT) per-database, so they vary between
+ * Quicken files. This function reads the actual value instead of hardcoding it.
+ * The result is cached for the lifetime of the database connection.
+ */
+const entityIdCache = new WeakMap<Database.Database, number>();
+
+export function getCategoryTagEntityId(db: Database.Database): number {
+  const cached = entityIdCache.get(db);
+  if (cached !== undefined) return cached;
+
+  const row = db
+    .prepare("SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag'")
+    .get() as { Z_ENT: number } | undefined;
+
+  if (!row) {
+    throw new Error(
+      "Could not find CategoryTag entity in Z_PRIMARYKEY. " +
+        "Is this a valid Quicken database?"
+    );
+  }
+
+  entityIdCache.set(db, row.Z_ENT);
+  return row.Z_ENT;
+}
