@@ -24,9 +24,12 @@ function jsonContent(data: unknown) {
 }
 
 /** Strip filesystem paths from error messages to avoid leaking personal info. */
-function sanitizeError(err: any): string {
+export function sanitizeError(err: any): string {
   const msg = String(err?.message ?? err);
-  return msg.replace(/(?:\/[\w.-]+){2,}/g, "<path>");
+  return msg
+    .replace(/'\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
+    .replace(/"\/[^"]+"/g, '"<path>"') // double-quoted paths
+    .replace(/\/(?:[\w.-]+\/)+[\w.-]+/g, "<path>"); // unquoted multi-segment paths
 }
 
 /**
@@ -54,10 +57,26 @@ function isDatabaseDecrypted(): boolean {
 }
 
 /** Format an error for MCP tool response, with extra help for common issues. */
-function formatToolError(err: any) {
+export function formatToolError(err: any) {
   const msg = String(err?.message ?? err);
   let text = `Error: ${sanitizeError(err)}`;
-  if (msg.includes("no such table")) {
+
+  if (msg.includes("NODE_MODULE_VERSION") || msg.includes("was compiled against")) {
+    text =
+      `Error: Native module version mismatch — better-sqlite3 was compiled for a different Node.js version.\n\n` +
+      `Running: Node.js ${process.version}\n\n` +
+      `This typically happens when npx caches a build for one Node.js version, ` +
+      `but the MCP host (e.g., Claude Desktop) runs a different one.\n\n` +
+      `Fix: run \`rm -rf ~/.npm/_npx\` and restart the MCP server.`;
+  } else if (msg.includes("dlopen") || msg.includes("MODULE_NOT_FOUND")) {
+    text +=
+      "\n\nThe better-sqlite3 native module failed to load. " +
+      "Try clearing the npx cache: `rm -rf ~/.npm/_npx` and restart.";
+  } else if (msg.includes("unable to open database")) {
+    text +=
+      "\n\nIf Quicken For Mac is not running, open it first: open -a 'Quicken'\n" +
+      "Then wait a few seconds and retry.";
+  } else if (msg.includes("no such table")) {
     if (!isDatabaseDecrypted()) {
       text +=
         "\n\nQuicken For Mac is not running. Quicken encrypts its database when " +

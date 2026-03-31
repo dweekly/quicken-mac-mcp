@@ -8,7 +8,7 @@
  */
 
 import Database from "better-sqlite3";
-import { readdirSync, statSync } from "fs";
+import { accessSync, constants, existsSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { join, resolve } from "path";
 
@@ -81,6 +81,67 @@ export function openDatabase(dbPath?: string): Database.Database {
  * the database file (e.g., after opening/closing the app), we detect the inode
  * change and reconnect.
  */
+/**
+ * Diagnose why a database path can't be opened. Returns a human-readable
+ * explanation without exposing the full filesystem path.
+ */
+export function diagnosePath(filePath: string): string {
+  const hints: string[] = [];
+
+  if (!existsSync(filePath)) {
+    hints.push("The database file does not exist at the configured path.");
+    // Check if the parent .quicken bundle exists
+    const parent = resolve(filePath, "..");
+    if (!existsSync(parent)) {
+      hints.push(
+        "The parent directory (the .quicken bundle) also does not exist. " +
+          "Check that the QUICKEN_DB_PATH is correct and includes the /data suffix."
+      );
+    } else {
+      hints.push(
+        "The parent directory exists but contains no 'data' file. " +
+          "Quicken may not have created its database yet, or the path may be wrong."
+      );
+    }
+  } else {
+    // File exists — check permissions
+    try {
+      accessSync(filePath, constants.R_OK);
+    } catch {
+      hints.push(
+        "The database file exists but is not readable. " +
+          "Check file permissions — Quicken databases require read access."
+      );
+    }
+
+    // Check if it's a regular file
+    try {
+      const stat = statSync(filePath);
+      if (!stat.isFile()) {
+        hints.push("The path exists but is not a regular file.");
+      } else if (stat.size < 100) {
+        hints.push(
+          "The database file is very small (" +
+            stat.size +
+            " bytes) — Quicken may have " +
+            "encrypted/locked it. Make sure Quicken For Mac is open and the file is unlocked."
+        );
+      }
+    } catch {
+      // statSync failed — already covered above
+    }
+  }
+
+  if (hints.length === 0) {
+    hints.push(
+      "The file exists and is readable, but SQLite could not open it. " +
+        "It may be encrypted (Quicken is closed) or corrupted."
+    );
+  }
+
+  return hints.join("\n");
+}
+
 export function createDbAccessor(dbPath?: string): () => Database.Database {
   let db: Database.Database | null = null;
   let cachedIno: bigint | null = null;
@@ -98,14 +159,19 @@ export function createDbAccessor(dbPath?: string): () => Database.Database {
       cachedIno = currentIno;
     } catch (err: any) {
       if (err?.code === "ENOENT") {
-        // File doesn't exist — let openDatabase below surface the error
+        // File doesn't exist — let the open below surface a diagnostic error
       } else {
         throw err;
       }
     }
 
     if (!db) {
-      db = new Database(resolvedPath, { readonly: true });
+      try {
+        db = new Database(resolvedPath, { readonly: true });
+      } catch (err: any) {
+        const diagnosis = diagnosePath(resolvedPath);
+        throw new Error(`${err.message}\n\n${diagnosis}`);
+      }
     }
     return db;
   };
