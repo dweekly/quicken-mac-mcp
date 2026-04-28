@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/dweekly-quicken-mac-mcp-badge.png)](https://mseep.ai/app/dweekly-quicken-mac-mcp)
+
 # quicken-mac-mcp
 
 [![npm version](https://img.shields.io/npm/v/quicken-mac-mcp)](https://www.npmjs.com/package/quicken-mac-mcp)
