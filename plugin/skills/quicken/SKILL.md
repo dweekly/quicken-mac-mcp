@@ -43,7 +43,7 @@ Quicken uses Apple Core Data conventions. The full schema reference (84 entities
 | `ZTRANSACTION` | One row per transaction. `ZACCOUNT` → account, `ZUSERPAYEE` → payee. Date columns: `ZPOSTEDDATE`, `ZENTEREDDATE` (use `COALESCE(ZPOSTEDDATE, ZENTEREDDATE)` — imported transactions sometimes lack `ZPOSTEDDATE`). `ZNOTE` = transaction-level memo. |
 | `ZCASHFLOWTRANSACTIONENTRY` | Split line items. One transaction → one or more entries. `ZPARENT` → `ZTRANSACTION.Z_PK`, `ZAMOUNT` (signed), `ZCATEGORYTAG` → `ZTAG.Z_PK`, `ZNOTE` = per-split memo. |
 | `ZUSERPAYEE` | Payees. `ZNAME`. |
-| `ZTAG` | Category/tag hierarchy. Filter to categories via `Z_ENT = (SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag')`. `ZPARENTCATEGORY` → parent `ZTAG.Z_PK`. `ZINCOME` distinguishes income vs expense categories. |
+| `ZTAG` | Category/tag hierarchy. Filter to categories via `Z_ENT = (SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag')`. `ZPARENTCATEGORY` → parent `ZTAG.Z_PK`. `ZTYPE` = 1 for expense categories, 2 for income. |
 | `ZPOSITION` + `ZSECURITY` + `ZSECURITYQUOTE` | Investment holdings, cost basis, last-known prices. |
 
 ### Footguns

@@ -3141,7 +3141,12 @@ JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK;
 ### Lot Tracking
 
 ```sql
-SELECT l.*, lm.ZSHARES, lm.ZCOSTBASIS, t.ZPOSTEDDATE
+SELECT l.*,
+       lm.ZAFTERUNITS,
+       lm.ZAFTERCOSTBASIS,
+       lm.ZBEFOREUNITS,
+       lm.ZBEFORECOSTBASIS,
+       t.ZPOSTEDDATE
 FROM ZLOT l
 JOIN ZLOTMOD lm ON lm.ZLOT = l.Z_PK
 JOIN ZTRANSACTION t ON lm.ZTRANSACTION = t.Z_PK;
@@ -3155,7 +3160,7 @@ JOIN ZTRANSACTION t ON lm.ZTRANSACTION = t.Z_PK;
 ### Account to Financial Institution
 
 ```sql
-SELECT a.ZNAME, fi.ZNAME AS institution_name, cfi.ZUSERNAME
+SELECT a.ZNAME, fi.ZNAME AS institution_name, cfi.ZLOGINNAME, cfi.ZDISPLAYNAME
 FROM ZACCOUNT a
 JOIN ZFINANCIALINSTITUTION fi ON a.ZFINANCIALINSTITUTION = fi.Z_PK
 LEFT JOIN ZCLOUDFILOGIN cfi ON a.ZCLOUDFILOGIN = cfi.Z_PK;
@@ -3167,7 +3172,7 @@ LEFT JOIN ZCLOUDFILOGIN cfi ON a.ZCLOUDFILOGIN = cfi.Z_PK;
 ### Reconciliation
 
 ```sql
-SELECT rr.ZDATE, rr.ZCLOSINGBALANCE, rt.ZORIGINALTRANSACTION
+SELECT rr.ZENDDATE, rr.ZBEGINNINGBALANCE, rr.ZENDINGBALANCE, rt.ZORIGINALTRANSACTION
 FROM ZRECONCILERECORD rr
 JOIN ZRECONCILEDTRANSACTION rt ON rt.ZRECONCILERECORD = rr.Z_PK;
 ```
@@ -3186,7 +3191,7 @@ Core Data uses **single-table inheritance** for several entity hierarchies. The 
 
 | Physical Table | Entity Types | Notes |
 |---|---|---|
-| `ZTRANSACTION` | Transaction, CashFlowTransaction, SmartCashFlowTransaction, InvestmentTransaction | Investment-specific columns (ZSHARES, ZSHAREPRICE, etc.) are NULL for cash flow rows |
+| `ZTRANSACTION` | Transaction, CashFlowTransaction, SmartCashFlowTransaction, InvestmentTransaction | Investment-specific columns (`ZUNITS`, `ZCOMMISSION`, `ZPLACEHOLDERCOSTBASISUNITS`, etc.) are NULL for cash flow rows. Per-unit price is not stored directly — derive it from `ZAMOUNT` ÷ `ZUNITS`, or look up `ZSECURITYQUOTE.ZCLOSINGPRICE` for the trade date. |
 | `ZTAG` | Tag, CategoryTag, UserTag, CashFlowTag | Filter on Z_ENT to get only categories vs. user tags |
 
 ### Z79_PARENT Artifact
@@ -3197,7 +3202,7 @@ The `ZTAG` table contains a column `Z79_PARENT` alongside `ZPARENTCATEGORY`. Thi
 
 - `ZTRANSACTION.ZAMOUNT` -- credits are positive, debits are negative (from the account's perspective)
 - `ZCASHFLOWTRANSACTIONENTRY.ZAMOUNT` -- split amounts follow the same sign convention
-- Investment transactions use `ZSHARES` (can be negative for sells) and `ZSHAREPRICE` (always positive)
+- Investment transactions use `ZTRANSACTION.ZUNITS` (can be negative for sells); per-unit price is not stored as a column — derive it from `ZAMOUNT` ÷ `ZUNITS`, or join to `ZSECURITYQUOTE.ZCLOSINGPRICE` for the trade date
 
 ### Date Fields
 
