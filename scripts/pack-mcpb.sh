@@ -16,10 +16,21 @@ rm -rf "$STAGING"
 mkdir -p "$STAGING"
 
 # Copy only what the bundle needs
-cp "$ROOT/manifest.json" "$STAGING/"
 cp "$ROOT/icon.png" "$STAGING/"
 cp "$ROOT/LICENSE" "$STAGING/"
 cp -r "$ROOT/dist" "$STAGING/dist"
+
+# Sync the manifest version from package.json so the .mcpb advertises the
+# same version that's published to npm. The committed manifest.json is the
+# source of truth for everything else; only the version field is overridden.
+node -e "
+  const fs = require('fs');
+  const pkg = require('$ROOT/package.json');
+  const manifest = require('$ROOT/manifest.json');
+  manifest.version = pkg.version;
+  fs.writeFileSync('$STAGING/manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+  console.log('==> Manifest version synced to ' + pkg.version);
+"
 
 # Copy package.json but strip scripts to avoid lifecycle hooks during install
 node -e "

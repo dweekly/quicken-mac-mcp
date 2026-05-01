@@ -170,7 +170,7 @@ export function createDbAccessor(dbPath?: string): () => Database.Database {
         db = new Database(resolvedPath, { readonly: true });
       } catch (err: any) {
         const diagnosis = diagnosePath(resolvedPath);
-        throw new Error(`${err.message}\n\n${diagnosis}`);
+        throw new Error(`${err.message}\n\n${diagnosis}`, { cause: err });
       }
     }
     return db;

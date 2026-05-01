@@ -6,6 +6,12 @@
  * transactions (one transaction allocated across multiple categories),
  * a single transaction may produce multiple rows — one per split entry.
  *
+ * Notes live at two levels: ZTRANSACTION.ZNOTE (transaction-level) and
+ * ZCASHFLOWTRANSACTIONENTRY.ZNOTE (per-split). Both are surfaced as `note`
+ * and `split_note` so callers can distinguish documented-at-the-split-level
+ * transactions from truly empty ones. Insight credit:
+ * https://gist.github.com/Als-Pal/3fc9c18949c826c207559939e8d9b90a
+ *
  * Date conversion: ISO 8601 input dates are converted to Core Data
  * timestamps (seconds since 2001-01-01) for the WHERE clause, and
  * converted back to ISO 8601 in the output.
@@ -83,7 +89,8 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
       parent_cat.ZNAME as parent_category,
       s.ZAMOUNT as amount,
       COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) as posted_date_raw,
-      t.ZNOTE as note
+      t.ZNOTE as note,
+      s.ZNOTE as split_note
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
     LEFT JOIN ZUSERPAYEE p ON t.ZUSERPAYEE = p.Z_PK
