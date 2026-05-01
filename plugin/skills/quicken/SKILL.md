@@ -9,21 +9,20 @@ If the [`quicken-mac-mcp`](https://github.com/dweekly/quicken-mac-mcp) MCP serve
 
 ## Prerequisites
 
-- **macOS only.** Quicken For Mac stores data in a `.quicken` bundle (a directory) containing a Core Data SQLite database at `<bundle>/data`.
+- **macOS only.** Quicken For Mac stores data in a `.quicken` bundle (a directory) under `~/Documents/`, containing a Core Data SQLite database at `<bundle>/data`.
 - **Quicken For Mac must be running.** The `data` file is encrypted-at-rest and only decrypted while the app is open. If a query returns `"no such table: ZTRANSACTION"` or `"file is encrypted or is not a database"`, prompt the user to open Quicken with `open -a 'Quicken'` and wait a few seconds before retrying.
 - **Read-only.** Always open the file with the read-only flag (`sqlite3 -readonly`, or `sqlite3` with the `file:...?mode=ro` URI). Never write — see "Writing back" in the schema reference for the Z_OPT / app-must-be-closed footguns if a user explicitly asks for an enrichment workflow.
 
 ## Finding the database
 
-Default location: `~/Library/Application Support/Quicken/Documents/<file>.quicken/data` (or `~/Documents/<file>.quicken/data` for older installs). Multiple files may exist; pick the most recently modified one unless the user specifies.
+Quicken For Mac stores its data file at `~/Documents/<file>.quicken/data`. (`.quicken` is a directory bundle; the SQLite file is the `data` file inside it.) A user may have multiple `.quicken` bundles — pick the most recently modified one unless they specify a different file.
 
 ```bash
 # Auto-detect the active Quicken file (most recently modified)
-ls -t ~/Library/Application\ Support/Quicken/Documents/*.quicken/data \
-       ~/Documents/*.quicken/data 2>/dev/null | head -1
+ls -t ~/Documents/*.quicken/data 2>/dev/null | head -1
 ```
 
-Quicken Beta uses `Quicken Beta` instead of `Quicken` in the path.
+If `QUICKEN_DB_PATH` is set in the environment, prefer it over auto-detection.
 
 ## Schema cheatsheet
 

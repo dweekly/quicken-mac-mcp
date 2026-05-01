@@ -25,7 +25,7 @@ The Claude Code plugin install (`claude plugin install quicken-mac-mcp`) bundles
 
 ## How it works
 
-Quicken For Mac stores data in a Core Data SQLite database inside a `.quicken` bundle (e.g., `~/Library/Application Support/Quicken/Documents/MyFinances.quicken/data`, or `~/Documents/...` on older installs). The skill teaches Claude how to query that database directly; the MCP server is a thin wrapper that exposes eight prepackaged queries as tools.
+Quicken For Mac stores data in a Core Data SQLite database inside a `.quicken` bundle in your Documents folder (e.g., `~/Documents/MyFinances.quicken/data`). The skill teaches Claude how to query that database directly; the MCP server is a thin wrapper that exposes eight prepackaged queries as tools.
 
 ## Install — recommended (Claude Code, plugin)
 
