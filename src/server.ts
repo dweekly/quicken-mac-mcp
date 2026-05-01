@@ -6,6 +6,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createRequire } from "node:module";
 import { z } from "zod";
 import Database from "better-sqlite3";
 import { listAccounts } from "./tools/list-accounts.js";
@@ -17,6 +18,11 @@ import { searchPayees } from "./tools/search-payees.js";
 import { rawQuery } from "./tools/raw-query.js";
 import { listPortfolio } from "./tools/list-portfolio.js";
 import { detectQuickenDb } from "./db.js";
+
+// Read the package version at module load so the MCP server's serverInfo
+// reports the same version that's published to npm / bundled in the .mcpb,
+// instead of a hardcoded literal that drifts every release.
+const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
 
 /** Helper to wrap a tool result as MCP text content. */
 function jsonContent(data: unknown) {
@@ -116,7 +122,7 @@ export function createServer(getDb: () => Database.Database): McpServer {
   const server = new McpServer(
     {
       name: "quicken-mac-mcp",
-      version: "1.0.0",
+      version: pkg.version,
     },
     {
       instructions: [

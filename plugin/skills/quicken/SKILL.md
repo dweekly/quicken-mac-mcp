@@ -143,16 +143,31 @@ ORDER BY txn_count DESC;
 
 ### Investment portfolio
 
+Holdings are reconstructed from `ZLOT` (tax lots), not directly from `ZPOSITION` — Quicken tracks per-lot units and cost basis and rolls them up. The latest stored price comes from `ZSECURITYQUOTE.ZCLOSINGPRICE` for the most recent `ZQUOTEDATE` per security.
+
 ```sql
-SELECT a.ZNAME as account, sec.ZNAME as security, sec.ZSYMBOL as symbol,
-       pos.ZSHARES as shares, pos.ZCOSTBASIS as cost_basis,
-       q.ZPRICE as last_price, q.ZSHARES * q.ZPRICE as market_value
-FROM ZPOSITION pos
-JOIN ZACCOUNT a ON pos.ZACCOUNT = a.Z_PK
+-- Holdings: shares + cost basis, summed across lots per (account, security)
+SELECT a.ZNAME as account,
+       sec.ZNAME as security,
+       sec.ZTICKER as ticker,
+       ROUND(SUM(l.ZLATESTUNITS), 6) as current_shares,
+       ROUND(SUM(l.ZLATESTCOSTBASIS), 2) as cost_basis
+FROM ZLOT l
+JOIN ZPOSITION pos ON l.ZPOSITION = pos.Z_PK
 JOIN ZSECURITY sec ON pos.ZSECURITY = sec.Z_PK
-LEFT JOIN ZSECURITYQUOTE q ON q.ZSECURITY = sec.Z_PK
-WHERE pos.ZSHARES > 0
-ORDER BY market_value DESC;
+JOIN ZACCOUNT a ON pos.ZACCOUNT = a.Z_PK
+WHERE l.ZLATESTUNITS > 0
+GROUP BY a.ZNAME, sec.ZNAME, sec.ZTICKER
+ORDER BY a.ZNAME, sec.ZNAME;
+
+-- Last-known price per security (Quicken's stored quotes — may be days stale)
+SELECT sec.ZTICKER as ticker,
+       q.ZCLOSINGPRICE as price,
+       date(q.ZQUOTEDATE + 978307200, 'unixepoch') as price_date
+FROM ZSECURITYQUOTE q
+JOIN ZSECURITY sec ON q.ZSECURITY = sec.Z_PK
+WHERE sec.ZTICKER IS NOT NULL
+  AND q.ZQUOTEDATE = (SELECT MAX(q2.ZQUOTEDATE) FROM ZSECURITYQUOTE q2 WHERE q2.ZSECURITY = sec.Z_PK);
 ```
 
 ## Workflow guidance
