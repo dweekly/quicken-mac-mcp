@@ -41,6 +41,7 @@
     "format:check": "prettier --check 'src/**/*.ts'",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:docs": "vitest run src/__tests__/docs.test.ts",
     "pack:mcpb": "./scripts/pack-mcpb.sh"
   },
   "dependencies": {
