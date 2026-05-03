@@ -16,6 +16,15 @@ Quicken for Mac stores its data in a [Core Data](https://developer.apple.com/doc
 - **Z_ENT values are per-database** -- always look up entity type numbers from `Z_PRIMARYKEY` at runtime; they may differ across Quicken data files.
 - **Encryption** -- Quicken encrypts the `data` file when the app is closed. The database is only readable while Quicken is running.
 
+### Writing back to the database (forks / one-off scripts)
+
+This MCP server opens the database read-only and never writes. If you fork the schema knowledge here for an enrichment workflow that *does* write (e.g., the [Quicken ↔ Amazon order matcher gist](https://gist.github.com/Als-Pal/3fc9c18949c826c207559939e8d9b90a) that inspired the `split_note` column), Core Data has two non-obvious requirements:
+
+1. **Increment `Z_OPT` on every UPDATE.** It is the optimistic-locking counter Core Data uses to detect concurrent edits. Updates that don't bump `Z_OPT` may be silently rolled back or cause Quicken to corrupt the row on next sync. Always write `SET ZNOTE = ?, Z_OPT = Z_OPT + 1`.
+2. **Quicken must be closed before writing.** The same encryption that requires Quicken to be open for *reads* means concurrent writes from your script while Quicken is running will fight Core Data's in-memory state. Quit Quicken, run your update, then reopen — Quicken will pick up the changed rows.
+
+Always make a file-level backup of the `.quicken/data` file before writing.
+
 ---
 
 ## Entity Types (Z_PRIMARYKEY)
@@ -3132,7 +3141,12 @@ JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK;
 ### Lot Tracking
 
 ```sql
-SELECT l.*, lm.ZSHARES, lm.ZCOSTBASIS, t.ZPOSTEDDATE
+SELECT l.*,
+       lm.ZAFTERUNITS,
+       lm.ZAFTERCOSTBASIS,
+       lm.ZBEFOREUNITS,
+       lm.ZBEFORECOSTBASIS,
+       t.ZPOSTEDDATE
 FROM ZLOT l
 JOIN ZLOTMOD lm ON lm.ZLOT = l.Z_PK
 JOIN ZTRANSACTION t ON lm.ZTRANSACTION = t.Z_PK;
@@ -3146,7 +3160,7 @@ JOIN ZTRANSACTION t ON lm.ZTRANSACTION = t.Z_PK;
 ### Account to Financial Institution
 
 ```sql
-SELECT a.ZNAME, fi.ZNAME AS institution_name, cfi.ZUSERNAME
+SELECT a.ZNAME, fi.ZNAME AS institution_name, cfi.ZLOGINNAME, cfi.ZDISPLAYNAME
 FROM ZACCOUNT a
 JOIN ZFINANCIALINSTITUTION fi ON a.ZFINANCIALINSTITUTION = fi.Z_PK
 LEFT JOIN ZCLOUDFILOGIN cfi ON a.ZCLOUDFILOGIN = cfi.Z_PK;
@@ -3158,7 +3172,7 @@ LEFT JOIN ZCLOUDFILOGIN cfi ON a.ZCLOUDFILOGIN = cfi.Z_PK;
 ### Reconciliation
 
 ```sql
-SELECT rr.ZDATE, rr.ZCLOSINGBALANCE, rt.ZORIGINALTRANSACTION
+SELECT rr.ZENDDATE, rr.ZBEGINNINGBALANCE, rr.ZENDINGBALANCE, rt.ZORIGINALTRANSACTION
 FROM ZRECONCILERECORD rr
 JOIN ZRECONCILEDTRANSACTION rt ON rt.ZRECONCILERECORD = rr.Z_PK;
 ```
@@ -3177,7 +3191,7 @@ Core Data uses **single-table inheritance** for several entity hierarchies. The 
 
 | Physical Table | Entity Types | Notes |
 |---|---|---|
-| `ZTRANSACTION` | Transaction, CashFlowTransaction, SmartCashFlowTransaction, InvestmentTransaction | Investment-specific columns (ZSHARES, ZSHAREPRICE, etc.) are NULL for cash flow rows |
+| `ZTRANSACTION` | Transaction, CashFlowTransaction, SmartCashFlowTransaction, InvestmentTransaction | Investment-specific columns (`ZUNITS`, `ZCOMMISSION`, `ZPLACEHOLDERCOSTBASISUNITS`, etc.) are NULL for cash flow rows. Per-unit price is not stored directly — derive it from `ZAMOUNT` ÷ `ZUNITS`, or look up `ZSECURITYQUOTE.ZCLOSINGPRICE` for the trade date. |
 | `ZTAG` | Tag, CategoryTag, UserTag, CashFlowTag | Filter on Z_ENT to get only categories vs. user tags |
 
 ### Z79_PARENT Artifact
@@ -3188,7 +3202,7 @@ The `ZTAG` table contains a column `Z79_PARENT` alongside `ZPARENTCATEGORY`. Thi
 
 - `ZTRANSACTION.ZAMOUNT` -- credits are positive, debits are negative (from the account's perspective)
 - `ZCASHFLOWTRANSACTIONENTRY.ZAMOUNT` -- split amounts follow the same sign convention
-- Investment transactions use `ZSHARES` (can be negative for sells) and `ZSHAREPRICE` (always positive)
+- Investment transactions use `ZTRANSACTION.ZUNITS` (can be negative for sells); per-unit price is not stored as a column — derive it from `ZAMOUNT` ÷ `ZUNITS`, or join to `ZSECURITYQUOTE.ZCLOSINGPRICE` for the trade date
 
 ### Date Fields
 

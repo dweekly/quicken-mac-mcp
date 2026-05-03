@@ -124,6 +124,8 @@ describeWithDb("query_transactions", () => {
     expect(result[0]).toHaveProperty("posted_date");
     expect(result[0]).toHaveProperty("account_name");
     expect(result[0]).toHaveProperty("amount");
+    expect(result[0]).toHaveProperty("note");
+    expect(result[0]).toHaveProperty("split_note");
   });
 
   it("respects limit parameter", () => {
