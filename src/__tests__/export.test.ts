@@ -12,7 +12,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { exportDatabase } from "../export.js";
-import { CORE_DATA_EPOCH_OFFSET } from "../db.js";
+import { CORE_DATA_EPOCH_OFFSET, detectQuickenDb } from "../db.js";
 
 const CATEGORY_TAG_ENT = 79;
 
@@ -351,5 +351,147 @@ describe("exportDatabase — investment tables", () => {
     buildFixture(srcPath);
     const result = exportDatabase(outPath, srcPath);
     expect(result.holdings).toBe(0);
+  });
+});
+
+// ============================================================
+// Live-DB integration tests
+// ------------------------------------------------------------
+// Skipped automatically when no Quicken DB is reachable (e.g. CI).
+// Run locally with Quicken For Mac open. Assertions are generic
+// invariants — they don't hardcode anything tied to a specific DB.
+// ============================================================
+
+let LIVE_DB_PATH: string | undefined;
+try {
+  LIVE_DB_PATH = process.env.QUICKEN_DB_PATH || detectQuickenDb();
+} catch {
+  // no .quicken bundles
+}
+
+function liveDbReadable(path: string): boolean {
+  try {
+    const probe = new Database(path, { readonly: true });
+    const rows = probe
+      .prepare("SELECT 1 FROM ZACCOUNT LIMIT 1")
+      .all();
+    probe.close();
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+const describeWithLiveDb =
+  LIVE_DB_PATH && existsSync(LIVE_DB_PATH) && liveDbReadable(LIVE_DB_PATH)
+    ? describe
+    : describe.skip;
+
+describeWithLiveDb("exportDatabase — live Quicken DB", () => {
+  it("exports a real DB end-to-end and produces non-trivial counts", () => {
+    const result = exportDatabase(outPath, LIVE_DB_PATH);
+
+    expect(result.accounts).toBeGreaterThan(0);
+    expect(result.categories).toBeGreaterThan(0);
+    expect(result.payees).toBeGreaterThan(0);
+    expect(result.transactions).toBeGreaterThan(0);
+    expect(result.splits).toBeGreaterThanOrEqual(result.transactions);
+    expect(existsSync(outPath)).toBe(true);
+  });
+
+  it("exported counts match counts queried directly from the source", () => {
+    const result = exportDatabase(outPath, LIVE_DB_PATH);
+
+    const src = new Database(LIVE_DB_PATH!, { readonly: true });
+    const srcCounts = {
+      accounts: (src.prepare("SELECT COUNT(*) AS n FROM ZACCOUNT").get() as { n: number }).n,
+      transactions: (src.prepare("SELECT COUNT(*) AS n FROM ZTRANSACTION").get() as { n: number }).n,
+      // Splits: count entries with a non-null parent (orphans are filtered).
+      splits: (
+        src
+          .prepare("SELECT COUNT(*) AS n FROM ZCASHFLOWTRANSACTIONENTRY WHERE ZPARENT IS NOT NULL")
+          .get() as { n: number }
+      ).n,
+    };
+    src.close();
+
+    expect(result.accounts).toBe(srcCounts.accounts);
+    expect(result.transactions).toBe(srcCounts.transactions);
+    expect(result.splits).toBe(srcCounts.splits);
+  });
+
+  it("every exported split references an existing transaction (FK integrity)", () => {
+    exportDatabase(outPath, LIVE_DB_PATH);
+
+    const out = new Database(outPath, { readonly: true });
+    const orphanRow = out
+      .prepare(
+        `SELECT COUNT(*) AS n FROM transaction_splits ts
+         LEFT JOIN transactions t ON t.id = ts.transaction_id
+         WHERE t.id IS NULL`
+      )
+      .get() as { n: number };
+    out.close();
+    expect(orphanRow.n).toBe(0);
+  });
+
+  it("transactions.total_amount equals SUM of its splits (within rounding tolerance)", () => {
+    exportDatabase(outPath, LIVE_DB_PATH);
+
+    const out = new Database(outPath, { readonly: true });
+    const mismatch = out
+      .prepare(
+        `SELECT COUNT(*) AS n
+         FROM transactions t
+         JOIN (
+           SELECT transaction_id, ROUND(SUM(amount), 2) AS sum_amount
+           FROM transaction_splits
+           GROUP BY transaction_id
+         ) s ON s.transaction_id = t.id
+         WHERE ABS(t.total_amount - s.sum_amount) > 0.01`
+      )
+      .get() as { n: number };
+    out.close();
+    expect(mismatch.n).toBe(0);
+  });
+
+  it("monthly_spending and cash_flow views return rows", () => {
+    exportDatabase(outPath, LIVE_DB_PATH);
+
+    const out = new Database(outPath, { readonly: true });
+    const monthlyCount = (out.prepare("SELECT COUNT(*) AS n FROM monthly_spending").get() as { n: number }).n;
+    const cashFlowCount = (out.prepare("SELECT COUNT(*) AS n FROM cash_flow").get() as { n: number }).n;
+    out.close();
+
+    expect(monthlyCount).toBeGreaterThan(0);
+    expect(cashFlowCount).toBeGreaterThan(0);
+  });
+
+  it("_export_meta counts match the values returned by exportDatabase", () => {
+    const result = exportDatabase(outPath, LIVE_DB_PATH);
+
+    const out = new Database(outPath, { readonly: true });
+    const meta = Object.fromEntries(
+      (out.prepare("SELECT key, value FROM _export_meta").all() as Array<{
+        key: string;
+        value: string;
+      }>).map((r) => [r.key, r.value])
+    );
+    out.close();
+
+    expect(meta.count_accounts).toBe(String(result.accounts));
+    expect(meta.count_transactions).toBe(String(result.transactions));
+    expect(meta.count_splits).toBe(String(result.splits));
+    expect(meta.count_holdings).toBe(String(result.holdings));
+  });
+
+  it("auto-detects Quicken DB when no srcDbPath is given (only when QUICKEN_DB_PATH unset)", () => {
+    if (process.env.QUICKEN_DB_PATH) {
+      // Auto-detect path is exercised differently when env var is set; skip
+      // to avoid asserting against the user's specific environment.
+      return;
+    }
+    const result = exportDatabase(outPath);
+    expect(result.accounts).toBeGreaterThan(0);
   });
 });
