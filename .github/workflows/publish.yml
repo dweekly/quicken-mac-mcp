@@ -1,0 +1,67 @@
+name: Publish to npm
+
+# Publishes the package to npm whenever a GitHub Release is published.
+#
+# Authentication uses npm Trusted Publishing (OIDC) — no NPM_TOKEN secret
+# required. Configure once at:
+#   https://www.npmjs.com/package/quicken-mac-mcp/access  ->  Trusted Publishers
+# with: GitHub Actions, repo dweekly/quicken-mac-mcp, workflow publish.yml,
+# environment release.
+#
+# The same OIDC token signs an npm provenance attestation (Sigstore) so the
+# package page shows a verified link to the source commit and workflow.
+
+on:
+  release:
+    types: [published]
+
+  # Manual escape hatch. Still requires the Trusted Publisher entry above
+  # and publishes whatever version is in the workflow ref's package.json.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC -> npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release   # gate via the GitHub "release" environment so
+                           # only protected refs / approvers can publish
+    steps:
+      - name: Checkout the released ref
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify package.json version matches the release tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          PKG_VERSION=$(node -p 'require("./package.json").version')
+          # Strip a leading 'v' if present (release tags are v1.3.0).
+          TAG_VERSION="${TAG_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "Publishing $PKG_VERSION (tag $TAG_NAME)"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
