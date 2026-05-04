@@ -5,6 +5,7 @@
  * with proper column names, ISO 8601 dates, and denormalized fields for convenience.
  */
 
+import { existsSync, unlinkSync } from "node:fs";
 import Database from "better-sqlite3";
 import { openDatabase, CORE_DATA_EPOCH_OFFSET, getCategoryTagEntityId } from "./db.js";
 
@@ -278,6 +279,7 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
     FROM ZCASHFLOWTRANSACTIONENTRY s
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ?
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
+    WHERE s.ZPARENT IS NOT NULL
     ORDER BY s.ZPARENT, s.Z_PK
   `).all(entityId) as Array<{
     Z_PK: number; ZPARENT: number; ZCATEGORYTAG: number | null;
@@ -391,8 +393,15 @@ export interface ExportResult {
  * Run the full ETL: read from Quicken's Core Data DB, write clean tables to outputPath.
  */
 export function exportDatabase(outputPath: string, srcDbPath?: string): ExportResult {
+  if (existsSync(outputPath)) {
+    throw new Error(
+      `Output file already exists: ${outputPath}\nRemove it first (rm "${outputPath}") or choose a different path.`
+    );
+  }
+
   const src = openDatabase(srcDbPath);
   const out = new Database(outputPath);
+  let success = false;
 
   try {
     // Enable WAL mode for write performance
@@ -419,9 +428,16 @@ export function exportDatabase(outputPath: string, srcDbPath?: string): ExportRe
       return { outputPath, accounts, categories, payees, transactions, splits, holdings };
     })();
 
+    success = true;
     return result;
   } finally {
     out.close();
     src.close();
+    if (!success) {
+      // Don't leave a partial output file behind — it would block re-runs.
+      for (const p of [outputPath, `${outputPath}-wal`, `${outputPath}-shm`]) {
+        try { unlinkSync(p); } catch { /* may not exist */ }
+      }
+    }
   }
 }
