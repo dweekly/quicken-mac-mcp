@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+
+- New `quicken-mac-mcp export [output] [dbpath]` CLI subcommand that performs an ETL pass over Quicken's Core Data SQLite and writes a clean, normalized output database with human-readable column names, ISO 8601 dates, and denormalized fields. Default output path: `~/Documents/quicken-export.db`.
+- Exported tables: `accounts`, `categories`, `payees`, `transactions`, `transaction_splits`, `holdings`, plus `_export_meta` with row counts and an export timestamp.
+- Pre-built analysis views: `monthly_spending` (month × parent_category), `cash_flow` (monthly income / expense / net across cash and savings accounts), and `recurring_charges` (payees with 3+ charges spaced 25–35 days apart).
+- 19 new tests for the export pipeline (12 unit tests against a synthetic Quicken-shaped fixture, plus 7 live-DB integration tests with FK integrity, aggregate consistency, and view-row checks; the live block auto-skips when no Quicken DB is reachable).
+
+### Fixed
+
+- Export now skips rows in `ZCASHFLOWTRANSACTIONENTRY` whose `ZPARENT` is `NULL` (these would otherwise violate the `transaction_splits.transaction_id NOT NULL` foreign key and abort the export).
+- A failed export no longer leaves a partial output file behind. The export refuses to overwrite an existing output path at start, and on any failure removes the partial output along with its `-wal` / `-shm` sidecars so a re-run is unblocked.
+
 ## 1.2.2
 
 ### Fixed
