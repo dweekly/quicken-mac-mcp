@@ -42,6 +42,9 @@ jobs:
         run: npm ci
 
       - name: Verify package.json version matches the release tag
+        # Skip on workflow_dispatch — there is no tag, the dispatcher owns
+        # version selection. Only enforced on release events.
+        if: github.event_name == 'release'
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: |
