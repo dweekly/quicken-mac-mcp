@@ -32,17 +32,15 @@ jobs:
       - name: Checkout the released ref
         uses: actions/checkout@v4
 
+      # Node 24 ships with npm 11.5.1+ (Trusted Publishing requirement).
+      # Node 22's bundled npm is 10.x, which silently falls back to
+      # NODE_AUTH_TOKEN auth and 404s against TP-protected packages.
+      # CI / engines field stay on 22 — only the publish path needs 24.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-
-      # Node 22 ships with npm 10.x, but npm Trusted Publishing requires
-      # 11.5.1+. Without this, npm publish silently falls back to
-      # NODE_AUTH_TOKEN (the empty setup-node placeholder) and 404s.
-      - name: Upgrade npm to a Trusted-Publisher-capable version
-        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
