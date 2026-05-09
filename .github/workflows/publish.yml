@@ -38,6 +38,12 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      # Node 22 ships with npm 10.x, but npm Trusted Publishing requires
+      # 11.5.1+. Without this, npm publish silently falls back to
+      # NODE_AUTH_TOKEN (the empty setup-node placeholder) and 404s.
+      - name: Upgrade npm to a Trusted-Publisher-capable version
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
