@@ -30,14 +30,14 @@ jobs:
                            # only protected refs / approvers can publish
     steps:
       - name: Checkout the released ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Node 24 ships with npm 11.5.1+ (Trusted Publishing requirement).
       # Node 22's bundled npm is 10.x, which silently falls back to
       # NODE_AUTH_TOKEN auth and 404s against TP-protected packages.
       # CI / engines field stay on 22 — only the publish path needs 24.
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
