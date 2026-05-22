@@ -3,23 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>quicken-mac-mcp — Claude MCP server for Quicken For Mac</title>
-  <meta name="description" content="Read-only MCP server that gives Claude access to your Quicken For Mac financial data. Query accounts, transactions, spending, and investments.">
+  <title>quicken-mac-mcp — Data Sovereignty, AI Agent Skills, and Sovereign Exporter for Quicken For Mac</title>
+  <meta name="description" content="Take sovereign control of your Quicken For Mac financial data. Interrogate your decrypted SQLite database directly using high-fidelity Agent Skills, or export your complete history into normalised relational CSVs.">
   <link rel="canonical" href="https://dweekly.github.io/quicken-mac-mcp/">
-  <meta name="theme-color" content="#fafafa">
+  <meta name="theme-color" content="#0b0f19">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- OpenGraph -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="quicken-mac-mcp">
-  <meta property="og:description" content="Read-only MCP server that gives Claude access to your Quicken For Mac financial data. Query accounts, transactions, spending, and investments.">
+  <meta property="og:title" content="quicken-mac-mcp — Sovereign Financial Data & Skills">
+  <meta property="og:description" content="Take sovereign control of your Quicken For Mac financial data. Interrogate your decrypted SQLite database directly using high-fidelity Agent Skills, or export your complete history into normalised relational CSVs.">
   <meta property="og:url" content="https://dweekly.github.io/quicken-mac-mcp/">
   <meta property="og:site_name" content="quicken-mac-mcp">
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="quicken-mac-mcp">
-  <meta name="twitter:description" content="Read-only MCP server that gives Claude access to your Quicken For Mac financial data.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="quicken-mac-mcp — Sovereign Financial Data & Skills">
+  <meta name="twitter:description" content="Unlock your Quicken For Mac history. Query accounts, transactions, investments, and more using intelligent local-first agent skills or export everything to standard CSVs.">
 
   <!-- JSON-LD Structured Data -->
   <script type="application/ld+json">
@@ -27,7 +32,7 @@
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
     "name": "quicken-mac-mcp",
-    "description": "Read-only MCP server that gives Claude access to your Quicken For Mac financial data. Query accounts, transactions, spending, and investments.",
+    "description": "Read-only Agent Skill and MCP server that gives local AI agents direct access to Quicken For Mac decrypted SQLite databases.",
     "url": "https://dweekly.github.io/quicken-mac-mcp/",
     "codeRepository": "https://github.com/dweekly/quicken-mac-mcp",
     "programmingLanguage": "TypeScript",
@@ -50,170 +55,443 @@
 
   <style>
     *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --bg-color: #0b0f19;
+      --panel-bg: rgba(22, 28, 45, 0.4);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --accent-color: #3b82f6;
+      --accent-gradient: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+      --success-color: #34d399;
+      --code-bg: #1e293b;
+      --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.7;
-      color: #1a1a1a;
-      background: #fafafa;
+      font-family: var(--font-sans);
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      line-height: 1.75;
       margin: 0;
-      padding: 2rem 1.25rem;
+      padding: 4rem 1.5rem;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 45%);
+      background-attachment: fixed;
     }
-    .container { max-width: 740px; margin: 0 auto; }
-    h1 { font-size: 2rem; margin: 0 0 0.25rem; }
-    h2 {
-      font-size: 1.25rem;
-      margin: 2.5rem 0 0.75rem;
-      padding-bottom: 0.3rem;
-      border-bottom: 1px solid #e0e0e0;
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
     }
-    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
-    p, li { color: #333; }
-    a { color: #0969da; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .tagline { color: #555; font-size: 1.1rem; margin: 0 0 1rem; }
-    .links { margin-bottom: 2rem; }
-    .links a {
-      display: inline-block;
-      margin-right: 1.25rem;
-      font-size: 0.95rem;
-      font-weight: 500;
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 5rem;
     }
-    .badge {
-      display: inline-block;
-      background: #e8f5e9;
-      color: #2e7d32;
-      font-size: 0.8rem;
-      font-weight: 600;
-      padding: 0.15rem 0.5rem;
-      border-radius: 3px;
-      vertical-align: middle;
-      margin-left: 0.5rem;
+
+    .title-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
     }
-    code {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-      font-size: 0.9em;
-      background: #f0f0f0;
-      padding: 0.15em 0.35em;
-      border-radius: 3px;
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      margin: 0;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.03em;
     }
-    pre {
-      background: #f5f5f5;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      padding: 1rem 1.25rem;
-      overflow-x: auto;
+
+    .tagline {
+      font-size: 1.35rem;
+      color: var(--text-secondary);
+      margin-top: 1rem;
+      font-weight: 300;
+      max-width: 650px;
+      margin-left: auto;
+      margin-right: auto;
       line-height: 1.5;
     }
-    pre code { background: none; padding: 0; font-size: 0.85em; }
+
+    .links {
+      margin-top: 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 500;
+      padding: 0.5rem 1.25rem;
+      border-radius: 9999px;
+      background: rgba(96, 165, 250, 0.08);
+      border: 1px solid rgba(96, 165, 250, 0.2);
+      transition: all 0.2s ease;
+    }
+
+    .links a:hover {
+      background: rgba(96, 165, 250, 0.16);
+      border-color: rgba(96, 165, 250, 0.4);
+      transform: translateY(-1px);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-ro {
+      background: rgba(52, 211, 153, 0.1);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+
+    .badge-new {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      margin-left: 0.5rem;
+    }
+
+    /* Sections / Cards */
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 16px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(96, 165, 250, 0.25);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    h2 {
+      font-size: 1.65rem;
+      font-weight: 600;
+      margin-top: 0;
+      margin-bottom: 1.25rem;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      margin: 1.75rem 0 0.75rem;
+      color: #fff;
+    }
+
+    p {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      font-size: 1.05rem;
+    }
+
+    p strong {
+      color: #fff;
+    }
+
+    a.inline-link {
+      color: #60a5fa;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(96, 165, 250, 0.3);
+      transition: border-color 0.2s ease;
+    }
+
+    a.inline-link:hover {
+      border-bottom-color: #60a5fa;
+    }
+
+    /* Sub-grid columns */
+    .split-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .split-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .sub-card {
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 1.75rem;
+      transition: border-color 0.2s ease;
+    }
+
+    .sub-card:hover {
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .sub-card h3 {
+      margin-top: 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* Tables */
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 0.75rem 0;
       font-size: 0.95rem;
-    }
-    th, td {
       text-align: left;
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid #e0e0e0;
     }
-    th { font-weight: 600; background: #f5f5f5; }
-    ul { padding-left: 1.5rem; }
-    li { margin-bottom: 0.25rem; }
+
+    th, td {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    th {
+      font-weight: 600;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    td {
+      color: var(--text-secondary);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Code and Pre */
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      line-height: 1.5;
+      margin: 1.5rem 0;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85em;
+      border: none;
+      color: #e2e8f0;
+    }
+
+    ul {
+      padding-left: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: var(--text-secondary);
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+    }
+
+    /* Footer */
     footer {
-      margin-top: 3rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid #e0e0e0;
-      color: #777;
-      font-size: 0.85rem;
+      margin-top: 6rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      text-align: center;
     }
+
     @media (max-width: 600px) {
-      body { padding: 1.25rem 1rem; }
-      h1 { font-size: 1.5rem; }
-      pre { padding: 0.75rem; font-size: 0.85rem; }
-      th, td { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
+      body { padding: 2rem 1rem; }
+      h1 { font-size: 2.25rem; }
+      .card { padding: 1.5rem; }
+      .sub-card { padding: 1.25rem; }
     }
   </style>
 </head>
 <body>
-<main class="container">
+<div class="container">
 
-  <h1>quicken-mac-mcp <span class="badge">read-only</span></h1>
-  <p class="tagline">An MCP server that gives Claude read-only access to your Quicken For Mac financial data.</p>
-  <nav class="links" aria-label="Project links">
-    <a href="https://github.com/dweekly/quicken-mac-mcp">GitHub</a>
-    <a href="https://www.npmjs.com/package/quicken-mac-mcp">npm</a>
-  </nav>
+  <header>
+    <div class="title-row">
+      <h1>quicken-mac-mcp</h1>
+      <div>
+        <span class="badge badge-ro">read-only</span>
+      </div>
+    </div>
+    <p class="tagline">A dual-mode integration ecosystem that equips AI agents with raw schema skills or exports your entire Quicken For Mac history into standard relational CSVs.</p>
+    
+    <nav class="links" aria-label="Project links">
+      <a href="https://github.com/dweekly/quicken-mac-mcp">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" style="display:inline-block;vertical-align:text-bottom"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.35 2.69.91 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path></svg>
+        GitHub
+      </a>
+      <a href="https://www.npmjs.com/package/quicken-mac-mcp">npm</a>
+    </nav>
+  </header>
 
-  <h2>What it does</h2>
-  <p>
-    <a href="https://quicken.com/mac">Quicken For Mac</a> stores your financial data in a Core Data SQLite
-    database inside a <code>.quicken</code> bundle in your Documents folder. This
-    <a href="https://modelcontextprotocol.io/">MCP server</a> reads that database directly and
-    exposes 8 query tools to Claude &mdash; letting you ask questions about your accounts,
-    transactions, spending, and investments in natural language.
-  </p>
-  <p>The database is <strong>always opened read-only</strong>. Your Quicken data is never modified.</p>
+  <main>
+    
+    <section class="card">
+      <h2>Sovereign Data: The Philosophy</h2>
+      <p>
+        For decades, our personal financial history has been locked inside proprietary desktop ecosystems or tied to cloud-based aggregators. We believe in a third path: <strong>local-first data interrogated by local-first AI</strong>.
+      </p>
+      <p>
+        Rather than capping what an intelligent agent can do by wrapping the database in a rigid REST-like API, we have pivoted this project toward <strong>Skills-first design and complete data sovereignty</strong>. We expose the raw database schema and provide an excellent technical paper trail, empowering modern, hyper-intelligent agents to write and execute highly relational, unexpected SQL queries on the fly.
+      </p>
+      <p>
+        Read the full case study on this paradigm shift in <a href="https://david.weekly.org/posts/2026-05-22-data-sovereignty-ai-agents-why-docs-are-the-new-apis" class="inline-link" target="_blank" rel="noopener noreferrer">Data Sovereignty, AI Agents, and Why Technical Docs Are the New APIs</a> on David Weekly's personal blog.
+      </p>
+    </section>
 
-  <h2>Tools</h2>
-  <table>
-    <thead>
-      <tr><th>Tool</th><th>Description</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><code>list_accounts</code></td>
-        <td>List accounts with name, type, and active/closed status. Optional type filter.</td>
-      </tr>
-      <tr>
-        <td><code>list_categories</code></td>
-        <td>List category tags with parent hierarchy. Filter by expense or income.</td>
-      </tr>
-      <tr>
-        <td><code>query_transactions</code></td>
-        <td>Query transactions with filters: date range, account types/names, amount range, payee search, category. Returns one row per split entry.</td>
-      </tr>
-      <tr>
-        <td><code>spending_by_category</code></td>
-        <td>Aggregate spending by category or parent category for a date range.</td>
-      </tr>
-      <tr>
-        <td><code>spending_over_time</code></td>
-        <td>Monthly spending totals, optionally broken down by category.</td>
-      </tr>
-      <tr>
-        <td><code>search_payees</code></td>
-        <td>Search payees by name with transaction counts.</td>
-      </tr>
-      <tr>
-        <td><code>list_portfolio</code></td>
-        <td>List investment holdings with shares, cost basis, and stored Quicken price quotes.</td>
-      </tr>
-      <tr>
-        <td><code>raw_query</code></td>
-        <td>Run arbitrary SELECT queries against the database (500-row limit).</td>
-      </tr>
-    </tbody>
-  </table>
+    <section class="card">
+      <h2>Two Integration Paths</h2>
+      <p>This repository ships two companion integration methods sharing the identical audited database schema:</p>
+      
+      <div class="split-container">
+        <div class="sub-card">
+          <h3>1. Agent Skill <span class="badge badge-success">Recommended</span></h3>
+          <p>
+            Teaches Claude to read your Quicken SQLite database directly using your system's preinstalled <code>sqlite3</code> tool.
+          </p>
+          <p>
+            <strong>No background servers, no module compile errors.</strong> Simply loads the raw database schema and a comprehensive set of query recipes into Claude's prompt context, letting the model construct precise relational queries dynamically.
+          </p>
+          <a href="https://github.com/dweekly/quicken-mac-mcp/blob/main/plugin/skills/quicken/SKILL.md" class="inline-link">View SKILL.md</a>
+        </div>
+        
+        <div class="sub-card">
+          <h3>2. MCP Server</h3>
+          <p>
+            Wraps common relational queries into 8 prepackaged tools for environments that do not support raw skill injection.
+          </p>
+          <p>
+            Ideal for non-Claude clients like Cursor, Cline, or custom MCP gateways that require typed tools instead of SQL generation.
+          </p>
+          <a href="#mcp-tools" class="inline-link">Explore MCP Tools</a>
+        </div>
+      </div>
+    </section>
 
-  <h2>Install</h2>
+    <section class="card">
+      <h2>Sovereign Exporter <span class="badge badge-new">New</span></h2>
+      <p>
+        Want to free your multi-decade financial records permanently? This project includes a zero-dependency, pure Python command-line tool that conects to your active Quicken database and parses it into a fully portable, normalised folder package.
+      </p>
+      <p>Execute the exporter in one command:</p>
+      <pre><code>python3 scripts/export_sovereign_csv.py</code></pre>
+      
+      <p>It creates a <code>quicken_sovereign_export/</code> folder containing:</p>
+      <ul>
+        <li><strong>Standardised CSVs</strong>: <code>accounts.csv</code>, <code>categories.csv</code>, <code>payees.csv</code>, <code>transactions.csv</code>, <code>transaction_splits.csv</code>, <code>tags.csv</code>, and <code>holdings.csv</code> (reconstructing individual tax lots and cost basis).</li>
+        <li><strong>Relational Map (<code>schema.json</code>)</strong>: A comprehensive data dictionary defining every column, type, description, and foreign key reference.</li>
+        <li><strong>Migration Guide (<code>README.md</code>)</strong>: A detailed guide showing you how to immediately query this data using <strong>DuckDB</strong>, <strong>Pandas</strong>, or <strong>PostgreSQL</strong>.</li>
+      </ul>
+      <p>This package allows any local LLM, custom database agent, or self-hosted tool to immediately digest your full financial history without intermediate wrappers.</p>
+    </section>
 
-  <h3>Claude Code (one-liner)</h3>
-  <pre><code>claude mcp add quicken -- npx -y quicken-mac-mcp</code></pre>
+    <section class="card" id="mcp-tools">
+      <h2>Packaged MCP Tools</h2>
+      <p>If utilizing the MCP wrapper pathway, the server exposes the following 8 tools directly to your workspace client:</p>
+      
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Tool</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>list_accounts</code></td>
+              <td>Exposes bank accounts, credits, assets, liabilities, and retirement funds.</td>
+            </tr>
+            <tr>
+              <td><code>list_categories</code></td>
+              <td>Lists hierarchical category tags, distinguishing income and expense items.</td>
+            </tr>
+            <tr>
+              <td><code>query_transactions</code></td>
+              <td>Retrieves transactions with advanced filters (dates, payees, amount, categories).</td>
+            </tr>
+            <tr>
+              <td><code>spending_by_category</code></td>
+              <td>Aggregates category spending summaries for a designated date range.</td>
+            </tr>
+            <tr>
+              <td><code>spending_over_time</code></td>
+              <td>Monthly cash-flow trends, optionally broken down by category splits.</td>
+            </tr>
+            <tr>
+              <td><code>search_payees</code></td>
+              <td>Lists and searches registered payee merchants.</td>
+            </tr>
+            <tr>
+              <td><code>list_portfolio</code></td>
+              <td>Lists active holdings with cost basis, shares, and current price quotes.</td>
+            </tr>
+            <tr>
+              <td><code>raw_query</code></td>
+              <td>Executes arbitrary read-only <code>SELECT</code> statements against the SQLite database.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-  <h3>Claude Code (plugin)</h3>
-  <pre><code>claude plugin install quicken-mac-mcp</code></pre>
-  <p>Installs the MCP server and a <code>/quicken</code> skill that guides Claude on how to best query your data.</p>
+    <section class="card">
+      <h2>Installation & Setup</h2>
+      
+      <h3>Claude Code (As a Plugin)</h3>
+      <p>Installs both the recommended <code>/quicken</code> skill and the MCP server tools in one step:</p>
+      <pre><code>claude plugin install quicken-mac-mcp</code></pre>
 
-  <h3>Claude Desktop (drag-and-drop)</h3>
-  <p>
-    Download <code>quicken-mac-mcp.mcpb</code> from the
-    <a href="https://github.com/dweekly/quicken-mac-mcp/releases">latest GitHub release</a>
-    and drag it into Claude Desktop. It will prompt you for your database path (or auto-detect it).
-  </p>
-
-  <h3>Claude Desktop (manual JSON)</h3>
-  <p>Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
-  <pre><code>{
+      <h3>Claude Desktop (Manual Config)</h3>
+      <p>Open your Desktop configuration file (<code>~/Library/Application Support/Claude/claude_desktop_config.json</code>) and add:</p>
+      <pre><code>{
   "mcpServers": {
     "quicken": {
       "command": "npx",
@@ -221,95 +499,56 @@
     }
   }
 }</code></pre>
-  <p>Restart Claude Desktop and you'll see a hammer icon with 8 tools available.</p>
+      
+      <p>
+        <em>Note: Quicken For Mac must be open and unlocked while your agent runs; Quicken encrypts the SQLite database on disk when the application is closed.</em>
+      </p>
+    </section>
 
-  <h3>Custom database path</h3>
-  <p>
-    By default the server auto-detects your Quicken database by scanning <code>~/Documents</code>
-    for <code>.quicken</code> bundles. If you have multiple Quicken files or your bundle is
-    elsewhere, set the <code>QUICKEN_DB_PATH</code> environment variable:
-  </p>
-  <pre><code>{
-  "mcpServers": {
-    "quicken": {
-      "command": "npx",
-      "args": ["-y", "quicken-mac-mcp"],
-      "env": {
-        "QUICKEN_DB_PATH": "/path/to/YourFile.quicken/data"
-      }
-    }
-  }
-}</code></pre>
+    <section class="card">
+      <h2>Database Schema</h2>
+      <p>
+        The Quicken database is a clean Core Data SQLite file. The following table describes the main physical schemas audited and mapped by our integration guide:
+      </p>
+      
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Description / Role</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>ZACCOUNT</code></td><td>Accounts, balances, types, and closing statuses.</td></tr>
+            <tr><td><code>ZTRANSACTION</code></td><td>Master transaction records (post dates, numbers, payees).</td></tr>
+            <tr><td><code>ZCASHFLOWTRANSACTIONENTRY</code></td><td>Relational split entries (amounts, categories, tags).</td></tr>
+            <tr><td><code>ZTAG</code> (Z_ENT=79)</td><td>Hierarchical financial categories (income vs expense splits).</td></tr>
+            <tr><td><code>ZUSERPAYEE</code></td><td>Merchant lists and quick-fill defaults.</td></tr>
+            <tr><td><code>ZLOT</code> / <code>ZPOSITION</code></td><td>Tax lots, investment purchases, cost basis.</td></tr>
+            <tr><td><code>ZSECURITY</code></td><td>Public securities (stock symbols, current prices).</td></tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <p>
+        <strong>Time Representation</strong>: Core Data SQLite tables represent time as the number of seconds elapsed since <strong>2001-01-01 00:00:00 UTC</strong> (Core Data Epoch). Both the Skill instructions and the MCP server handle this conversion automatically.
+      </p>
+    </section>
 
-  <h2>Example prompts</h2>
-  <ul>
-    <li>"List my accounts"</li>
-    <li>"What did I spend on groceries last month?"</li>
-    <li>"Show my spending by category for 2024"</li>
-    <li>"How has my monthly spending changed over the past year?"</li>
-    <li>"Find all transactions from Costco over $100"</li>
-    <li>"What are my top 10 payees by transaction count?"</li>
-    <li>"Compare my food spending in 2024 vs 2025"</li>
-    <li>"Show my investment portfolio with current prices"</li>
-  </ul>
+    <section class="card">
+      <h2>Disclaimer</h2>
+      <p>
+        This project is an independent, community-developed open-source tool. It is <strong>not</strong> an official Intuit product and is not endorsed by, directly affiliated with, maintained by, or sponsored by Intuit Inc. or any of its subsidiaries. "Quicken" is a registered trademark of Intuit Inc. All product and company names are trademarks or registered trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.
+      </p>
+      <p>
+        This software is provided "as is," without warranty of any kind. The authors and contributors are not responsible for any damage, data loss, or other issues arising from its use. Always back up your financial database before utilizing local analytics integrations.
+      </p>
+    </section>
 
-  <h2>Database schema</h2>
-  <p>Quicken For Mac uses Core Data with these key tables:</p>
-  <table>
-    <thead>
-      <tr><th>Table</th><th>Purpose</th></tr>
-    </thead>
-    <tbody>
-      <tr><td><code>ZACCOUNT</code></td><td>Bank accounts, credit cards, investment accounts</td></tr>
-      <tr><td><code>ZTRANSACTION</code></td><td>Individual transactions</td></tr>
-      <tr><td><code>ZCASHFLOWTRANSACTIONENTRY</code></td><td>Split line items (where categories live)</td></tr>
-      <tr><td><code>ZTAG</code> (Z_ENT=79)</td><td>Category tags with parent hierarchy</td></tr>
-      <tr><td><code>ZUSERPAYEE</code></td><td>Payee names</td></tr>
-      <tr><td><code>ZLOT</code> / <code>ZPOSITION</code></td><td>Investment lots and positions</td></tr>
-      <tr><td><code>ZSECURITY</code></td><td>Securities (stocks, funds) with tickers</td></tr>
-    </tbody>
-  </table>
-  <p>
-    Dates use <strong>Core Data epoch</strong> (seconds since 2001-01-01). The server handles all
-    date conversion automatically &mdash; you pass ISO 8601 dates, it returns ISO 8601 dates.
-  </p>
-  <p>
-    Account types are stored as uppercase strings: <code>CHECKING</code>, <code>CREDITCARD</code>,
-    <code>SAVINGS</code>, <code>MORTGAGE</code>, <code>RETIREMENTIRA</code>, <code>ASSET</code>,
-    <code>LIABILITY</code>, <code>LOAN</code>, etc. The tools accept any casing.
-  </p>
-
-  <h2>Development</h2>
-  <pre><code>git clone https://github.com/dweekly/quicken-mac-mcp.git
-cd quicken-mac-mcp
-npm install
-npm test          # run tests
-npm run lint      # eslint
-npm run format    # prettier
-npm run dev       # run server locally</code></pre>
-
-  <h3>Docker</h3>
-  <pre><code>docker build -t quicken-mac-mcp .
-docker run --rm -v ~/Documents/YourFile.quicken:/data:ro quicken-mac-mcp</code></pre>
-
-  <h2>Disclaimer</h2>
-  <p>
-    This project is an independent, community-developed open-source tool. It is <strong>not</strong>
-    an official Intuit product and is not endorsed by, directly affiliated with, maintained by, or
-    sponsored by Intuit Inc. or any of its subsidiaries. &ldquo;Quicken&rdquo; is a registered
-    trademark of Intuit Inc. All product and company names are trademarks or registered trademarks
-    of their respective holders. Use of them does not imply any affiliation with or endorsement by them.
-  </p>
-  <p>
-    This software is provided &ldquo;as is,&rdquo; without warranty of any kind. The authors and
-    contributors are not responsible for any damage, data loss, or other issues arising from its use.
-    Always back up your financial data before using third-party tools.
-  </p>
+  </main>
 
   <footer>
-    MIT License &middot; <a href="https://github.com/dweekly">David Weekly</a>
+    MIT License &middot; <a href="https://github.com/dweekly" style="color:#60a5fa;text-decoration:none;">David Weekly</a>
   </footer>
 
-</main>
+</div>
 </body>
 </html>

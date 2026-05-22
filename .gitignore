@@ -5,3 +5,5 @@ dist/
 .mcp.json
 *.mcpb
 .mcpb-staging/
+quicken_sovereign_export/
+.playwright-mcp/

@@ -111,6 +111,34 @@ These are the eight prepackaged tools the MCP server exposes. The skill covers t
 - "What are my top 10 payees by transaction count?"
 - "Compare my food spending in 2024 vs 2025"
 
+## Sovereign Financial Exporter (CSV & relational schema.json)
+
+Want to move your complete personal financial history out of Quicken to your own sovereign, self-hosted, or custom agentic analysis platform?
+
+This project includes a high-speed, zero-dependency, pure Python utility `scripts/export_sovereign_csv.py` that connects to your unlocked Quicken database and extracts it into a cleanly normalized, portable package.
+
+### How to use the exporter:
+
+1. Open your Quicken For Mac application and log in so that the database is decrypted.
+2. In your terminal, execute the export script:
+   ```bash
+   python3 scripts/export_sovereign_csv.py
+   ```
+3. A new directory `quicken_sovereign_export/` will be generated, containing:
+   - `accounts.csv`: Beautifully normalized accounts list (checking, credit, brokerage, retirement, etc.).
+   - `categories.csv`: Income & expense category path structure.
+   - `payees.csv`: Registered merchant names list.
+   - `transactions.csv`: Top-level ledger with post-date, notes, and transaction-level details.
+   - `transaction_splits.csv`: Line-item splits showing amounts and category IDs.
+   - `holdings.csv`: Active investment holdings reconstructed from your individual tax lots with cost basis and unrealized returns.
+   - `tags.csv`: Custom user tags mapped directly to splits.
+   - `schema.json`: Complete relational column and foreign key reference dictionary.
+   - `README.md`: A detailed migration guide demonstrating how to load and query your financial history instantly in **DuckDB**, **Pandas**, **PostgreSQL**, or other databases.
+
+This allows other agentic platforms (like custom GPTs, self-hosted LLMs, or sovereign database agents) to immediately parse, ingest, and analyze your entire financial history.
+
+---
+
 ## Database schema
 
 Quicken For Mac uses Core Data with these key tables:

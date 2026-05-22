@@ -3,102 +3,276 @@ name: quicken
 description: Read Quicken For Mac financial data by querying its Core Data SQLite database directly. Use when the user asks about accounts, transactions, spending, budgets, investments, or other personal-finance questions on macOS.
 ---
 
-You can answer questions about the user's Quicken For Mac data by reading its SQLite database directly with the `sqlite3` CLI (or any SQLite library). This is the canonical, most flexible way to answer Quicken questions on macOS — it works without any MCP server installed and lets you write whatever query the question demands.
-
-If the [`quicken-mac-mcp`](https://github.com/dweekly/quicken-mac-mcp) MCP server is also installed, you can use its prepackaged tools (`list_accounts`, `query_transactions`, `spending_by_category`, etc.) as shortcuts for common queries — but every one of those tools is just a wrapper around the SQL recipes below, so falling back to direct SQL is always fine.
+You can answer questions about the user's Quicken For Mac data by reading its SQLite database directly with the `sqlite3` CLI (or any standard SQLite library). This is the canonical, most flexible, and zero-dependency way to answer Quicken questions on macOS. It operates without any background MCP server processes and lets you write precise, powerful SQL queries tailored to the user's financial questions.
 
 ## Prerequisites
 
-- **macOS only.** Quicken For Mac stores data in a `.quicken` bundle (a directory) under `~/Documents/`, containing a Core Data SQLite database at `<bundle>/data`.
-- **Quicken For Mac must be running.** The `data` file is encrypted-at-rest and only decrypted while the app is open. If a query returns `"no such table: ZTRANSACTION"` or `"file is encrypted or is not a database"`, prompt the user to open Quicken with `open -a 'Quicken'` and wait a few seconds before retrying.
-- **Read-only.** Always open the file with the read-only flag (`sqlite3 -readonly`, or `sqlite3` with the `file:...?mode=ro` URI). Never write — see "Writing back" in the schema reference for the Z_OPT / app-must-be-closed footguns if a user explicitly asks for an enrichment workflow.
+- **macOS and Location.** Quicken For Mac stores its data inside a `.quicken` folder bundle (typically under `~/Documents/`), containing a Core Data SQLite database file named `data` inside the bundle.
+- **App Must Be Running.** The `data` file is encrypted-at-rest and is only fully decrypted by Quicken while the application is active and unlocked. If a query returns `"no such table: ZTRANSACTION"` or `"file is encrypted or is not a database"`, prompt the user to open Quicken with `open -a 'Quicken'` and wait a few seconds before retrying.
+- **Strict Read-Only.** Always open the file using the read-only flag: `sqlite3 -readonly` (or the equivalent read-only query parameter in custom scripts). Never write to the active database.
 
-## Finding the database
+## Auto-Detecting the Database
 
-Quicken For Mac stores its data file at `~/Documents/<file>.quicken/data`. (`.quicken` is a directory bundle; the SQLite file is the `data` file inside it.) A user may have multiple `.quicken` bundles — pick the most recently modified one unless they specify a different file.
+Quicken databases are located at `~/Documents/<file>.quicken/data`. A user may have multiple `.quicken` bundles. Pick the most recently modified one:
 
 ```bash
-# Auto-detect the active Quicken file (most recently modified)
+# Locate the active Quicken file (most recently modified)
 ls -t ~/Documents/*.quicken/data 2>/dev/null | head -1
 ```
 
-If `QUICKEN_DB_PATH` is set in the environment, prefer it over auto-detection.
+If the `QUICKEN_DB_PATH` environment variable is set, always prioritize it.
 
-## Schema cheatsheet
+---
 
-Quicken uses Apple Core Data conventions. The full schema reference (84 entities, all tables, indexes, foreign keys) lives in [`docs/schema.md`](https://github.com/dweekly/quicken-mac-mcp/blob/main/docs/schema.md) — fetch it when you need a column you don't see below.
+## Core Database Schema Reference
 
-### Core Data conventions
+Quicken uses Apple's Core Data framework. The database follows these standard conventions:
+- **`Z_` Prefixed Identifiers**: All table names are prefixed with `Z` (e.g. `ZTRANSACTION`), and all column names are prefixed with `Z` (e.g. `ZNAME`).
+- **Universal Metadata Columns**:
+  - `Z_PK`: Integer primary key for the table.
+  - `Z_ENT`: Entity type discriminator.
+  - `Z_OPT`: Optimistic locking counter.
+- **Date Format**: Core Data timestamps are represented as seconds since the reference date **2001-01-01 00:00:00 UTC**. Add `978307200` to convert to standard Unix epoch time.
+- **Signed Amounts**: Negative amounts represent expenses/debits; positive amounts represent income/credits.
 
-- All tables prefixed with `Z`, all columns prefixed with `Z`. Every entity has `Z_PK` (primary key), `Z_ENT` (entity-type discriminator), `Z_OPT` (optimistic-lock counter).
-- **Dates** are Core Data epoch: seconds since `2001-01-01 00:00:00 UTC`. Convert to Unix epoch with `+ 978307200`, or to ISO with SQLite's `datetime(col + 978307200, 'unixepoch')`.
-- **Amounts** are signed: negative = debit/expense, positive = credit/income.
-- **`Z_ENT` values are per-database.** Tables like `ZTAG` hold multiple entity types (`CategoryTag`, `UserTag`, `CashFlowTag`); look up the entity number at runtime: `SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag'`. Do not hardcode.
+### Key Tables Overview
 
-### Key tables for everyday queries
-
-| Table | Purpose |
+| Table | Description |
 |---|---|
-| `ZACCOUNT` | Bank, credit card, investment accounts. `ZNAME`, `ZTYPENAME` (`CHECKING`, `CREDITCARD`, …), `ZACTIVE`, `ZCLOSED`. |
-| `ZTRANSACTION` | One row per transaction. `ZACCOUNT` → account, `ZUSERPAYEE` → payee. Date columns: `ZPOSTEDDATE`, `ZENTEREDDATE` (use `COALESCE(ZPOSTEDDATE, ZENTEREDDATE)` — imported transactions sometimes lack `ZPOSTEDDATE`). `ZNOTE` = transaction-level memo. |
-| `ZCASHFLOWTRANSACTIONENTRY` | Split line items. One transaction → one or more entries. `ZPARENT` → `ZTRANSACTION.Z_PK`, `ZAMOUNT` (signed), `ZCATEGORYTAG` → `ZTAG.Z_PK`, `ZNOTE` = per-split memo. |
-| `ZUSERPAYEE` | Payees. `ZNAME`. |
-| `ZTAG` | Category/tag hierarchy. Filter to categories via `Z_ENT = (SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag')`. `ZPARENTCATEGORY` → parent `ZTAG.Z_PK`. `ZTYPE` = 1 for expense categories, 2 for income. |
-| `ZPOSITION` + `ZSECURITY` + `ZSECURITYQUOTE` | Investment holdings, cost basis, last-known prices. |
+| `ZACCOUNT` | Contains bank, credit card, savings, and investment accounts. |
+| `ZTRANSACTION` | Represents individual transactions. Abstract base table for cash flow and investment entries. |
+| `ZCASHFLOWTRANSACTIONENTRY` | Stores split line items. A single transaction maps to one or more split entries. |
+| `ZTAG` | Contains tags and category hierarchies. Used for grouping and classification. |
+| `ZUSERPAYEE` | Contains payee and merchant names. |
+| `ZLOT` | Tracks investment tax lots, providing cost basis and current units. |
+| `ZPOSITION` | Represents investment positions (linking accounts and securities). |
+| `ZSECURITY` | Contains stock, mutual fund, and other investment asset details. |
+| `ZSECURITYQUOTE` | Stores historical asset price quotes. |
 
-### Footguns
+---
 
-- **Splits multiply rows.** A `ZTRANSACTION JOIN ZCASHFLOWTRANSACTIONENTRY` returns one row per split — a single $100 grocery transaction split across "Food" and "Household" produces two rows. Aggregate on `s.ZAMOUNT`, not `t` columns, when summing.
-- **Notes live at two levels.** `ZTRANSACTION.ZNOTE` is the transaction-level memo; `ZCASHFLOWTRANSACTIONENTRY.ZNOTE` is per-split. A transaction can look "empty" at the top level but be documented at the split level — surface both when looking for undocumented transactions.
-- **Payee names are messy.** Quicken auto-extracts from raw bank descriptions, so the same merchant may appear as `Amazon.com`, `AMZN Mktp US`, and `AMAZON.COM*AMZN.COM/BILL`. Always do a `LIKE '%amazon%'` discovery query before filtering.
-- **Account types are uppercase strings.** `CHECKING`, `CREDITCARD`, `SAVINGS`, `MORTGAGE`, `RETIREMENTIRA`, `ASSET`, `LIABILITY`, `LOAN`, etc. Use `UPPER()` on both sides for case-insensitive matching.
-- **Default to checking + credit card** for "spending" questions unless the user asks otherwise — including investment, asset, or loan accounts in spending totals double-counts transfers.
+## Query Design Patterns & Anti-Patterns
 
-## Recipes
+### 1. Dynamic Entity ID Resolution
 
-These are the SQL bodies of the eight MCP tools, lightly annotated. Run them with `sqlite3 -readonly "$DB_PATH" "<query>"`.
-
-### Resolve the CategoryTag entity ID (used by most recipes)
+#### The Pattern (Best Practice)
+Core Data assigns entity numbers (`Z_ENT`) per-database. Multi-entity tables like `ZTAG` (which holds `CategoryTag`, `UserTag`, and `CashFlowTag`) rely on this discriminator. Always dynamically resolve `Z_ENT` for the `CategoryTag` entity by querying the `Z_PRIMARYKEY` table.
 
 ```sql
+-- Pattern: Dynamic lookup of CategoryTag entity ID
 SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag';
--- Substitute the result wherever <CAT_ENT> appears below.
 ```
 
-### List accounts
+#### The Anti-Pattern (To Avoid)
+Never hardcode `Z_ENT` values (e.g. `Z_ENT = 79`). Hardcoded entity numbers vary across different Quicken data files and will cause queries to return empty sets or incorrect data on other systems.
+
+---
+
+### 2. Temporal Epoch Conversion
+
+#### The Pattern (Best Practice)
+Convert Core Data timestamps by adding the epoch offset `978307200`. Use SQLite's date functions to parse and format the resulting standard Unix timestamp.
 
 ```sql
-SELECT Z_PK as id, ZNAME as name, ZTYPENAME as type,
-       (ZACTIVE = 1) as active, (ZCLOSED = 1) as closed
-FROM ZACCOUNT
-ORDER BY ZNAME;
+-- Pattern: Core Data to ISO Date conversion
+SELECT date(COALESCE(ZPOSTEDDATE, ZENTEREDDATE) + 978307200, 'unixepoch') FROM ZTRANSACTION LIMIT 1;
 ```
 
-### Query transactions (with notes at both levels)
+#### The Anti-Pattern (To Avoid)
+Never compare raw Core Data dates directly to standard Unix epochs or standard date strings without the offset. Doing so will result in temporal math mismatches.
+
+---
+
+### 3. Preventing Split Cartesian Products (Double-Counting)
+
+#### The Pattern (Best Practice)
+A single financial transaction can contain multiple split entries (e.g., a grocery transaction split into Food and Home goods). `ZTRANSACTION` stores the top-level transaction, while `ZCASHFLOWTRANSACTIONENTRY` stores individual splits. When calculating aggregates (sums or counts), join to `ZCASHFLOWTRANSACTIONENTRY` and aggregate on the split amount column (`s.ZAMOUNT`), grouping by the transaction ID if necessary.
+
+```sql
+-- Pattern: Correct split-aware expense aggregation
+SELECT t.Z_PK, SUM(s.ZAMOUNT) as total_spent
+FROM ZTRANSACTION t
+JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
+GROUP BY t.Z_PK
+LIMIT 5;
+```
+
+#### The Anti-Pattern (To Avoid)
+Never join `ZTRANSACTION` to `ZCASHFLOWTRANSACTIONENTRY` and sum the top-level transaction column `t.ZAMOUNT`. If a transaction has three splits, joining the tables creates three duplicate rows, multiplying `t.ZAMOUNT` by three and double-counting the aggregate.
+
+---
+
+### 4. Coalescing Double-Level Notes
+
+#### The Pattern (Best Practice)
+Notes and memos can be documented at the transaction level (`ZTRANSACTION.ZNOTE`) or at the individual split level (`ZCASHFLOWTRANSACTIONENTRY.ZNOTE`). For complete visibility, always extract and display both fields.
+
+```sql
+-- Pattern: Double-level note extraction
+SELECT t.ZNOTE as transaction_note, s.ZNOTE as split_note
+FROM ZTRANSACTION t
+LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
+WHERE t.ZNOTE IS NOT NULL OR s.ZNOTE IS NOT NULL
+LIMIT 5;
+```
+
+#### The Anti-Pattern (To Avoid)
+Never rely solely on `t.ZNOTE`. A transaction note might be empty, while the split-level memo contains critical, descriptive financial context.
+
+---
+
+### 5. Fuzzy Payee Normalization
+
+#### The Pattern (Best Practice)
+Merchants are often imported from raw banking descriptions with variable strings (e.g., `AMZN MKTP US*123` and `Amazon.com`). Always run a frequency-based payee query using case-insensitive fuzzy matches (`LIKE '%payee%'`) to identify clean names before filtering.
+
+```sql
+-- Pattern: Fuzzy payee discovery
+SELECT p.ZNAME, COUNT(t.Z_PK) as transaction_count
+FROM ZUSERPAYEE p
+LEFT JOIN ZTRANSACTION t ON t.ZUSERPAYEE = p.Z_PK
+WHERE p.ZNAME LIKE '%amazon%'
+GROUP BY p.ZNAME
+ORDER BY transaction_count DESC;
+```
+
+#### The Anti-Pattern (To Avoid)
+Never query payees using an exact string match (`ZNAME = 'Amazon'`). This misses raw card reader and online portal transactions, returning incomplete data.
+
+---
+
+### 6. Transfer and Asset Shift Exclusion
+
+#### The Pattern (Best Practice)
+To aggregate actual monthly spending or income, isolate calculations to daily operating account types (checking and credit cards). Exclude internal transfers and asset shifts (like moving cash to savings or retirement accounts) to prevent artificial inflation of totals.
+
+```sql
+-- Pattern: Isolated expense aggregation
+SELECT SUM(s.ZAMOUNT) as expenses
+FROM ZTRANSACTION t
+JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
+JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
+WHERE UPPER(a.ZTYPENAME) IN ('CHECKING', 'CREDITCARD')
+  AND s.ZAMOUNT < 0;
+```
+
+#### The Anti-Pattern (To Avoid)
+Never sum raw negative numbers across all accounts in the database. Doing so treats credit card pay-offs, savings deposits, and loan principal payments as monthly consumer "spending."
+
+---
+
+### 7. Active Tax Lot Consolidation
+
+#### The Pattern (Best Practice)
+Investment balances and cost bases are tracked via individual tax lots. To build a robust profile of brokerage and retirement accounts, reconstruct positions by summing active tax lots (`ZLATESTUNITS > 0` in `ZLOT`) joined to positions and securities.
+
+```sql
+-- Pattern: Holdings cost basis reconstruction
+SELECT a.ZNAME as account_name,
+       sec.ZNAME as security_name,
+       sec.ZTICKER as ticker,
+       SUM(l.ZLATESTUNITS) as current_shares,
+       SUM(l.ZLATESTCOSTBASIS) as total_cost
+FROM ZLOT l
+JOIN ZPOSITION p ON l.ZPOSITION = p.Z_PK
+JOIN ZSECURITY sec ON p.ZSECURITY = sec.Z_PK
+JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK
+WHERE l.ZLATESTUNITS > 0
+GROUP BY account_name, security_name, ticker;
+```
+
+#### The Anti-Pattern (To Avoid)
+Never rely on the top-level `ZPOSITION` table alone. Rolled-up numbers in position records can drift or represent historical figures, failing to accurately reflect remaining active units and cost bases.
+
+---
+
+### 8. Dynamic Many-to-Many Join Tables (User Tags)
+
+#### The Pattern (Best Practice)
+Core Data handles many-to-many relationships by generating physical join tables with naming conventions linked directly to internal entity IDs: `Z_<EntityA_ID><RelationshipName>`. For instance, in a database where `CashFlowTransactionEntry` is entity `15` and `UserTag` is entity `76`, the join table is `Z_15USERTAGS` containing the foreign key columns `Z_15CASHFLOWTRANSACTIONENTRIES` and `Z_76USERTAGS`.
+
+To query relationships dynamically across environments, an agent must first query the `Z_PRIMARYKEY` table to resolve the entity IDs, then dynamically build the table and column names:
+1. Lookup the `Z_ENT` ID for entity names:
+```sql
+SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CashFlowTransactionEntry';
+-- E_ENTRY (e.g. returns 15)
+SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'UserTag';
+-- E_TAG (e.g. returns 76)
+```
+2. Build the query joining the tables:
+```sql
+-- Pattern: Dynamic many-to-many lookup (using E_ENTRY=15 and E_TAG=76 as environment-specific examples)
+SELECT s.Z_PK, tag.ZNAME
+FROM ZCASHFLOWTRANSACTIONENTRY s
+JOIN Z_15USERTAGS j ON j.Z_15CASHFLOWTRANSACTIONENTRIES = s.Z_PK
+JOIN ZTAG tag ON j.Z_76USERTAGS = tag.Z_PK
+LIMIT 1;
+```
+
+#### The Anti-Pattern (To Avoid)
+Never hardcode table names like `Z_15USERTAGS` or column names like `Z_76USERTAGS` in static queries or tools. These entity IDs are auto-generated by Core Data and vary per Quicken database, which will cause queries to throw "no such table" or "no such column" syntax errors on different user databases.
+
+---
+
+### 9. Querying Auto-Categorization & Quick-Fill Rules
+
+#### The Pattern (Best Practice)
+Quicken uses `ZQUICKFILLRULE` to store transaction auto-categorization preferences (quick-fill rules). Each rule defines how transactions for a specific payee should be auto-filled (e.g. amounts, transaction type, default memos). If the rule represents split categories, its components are split across multiple child entries in the `ZQUICKFILLRULESPLITENTRY` table.
+
+To inspect how the auto-categorization engine maps merchants to default codes, run a query joining `ZQUICKFILLRULE` to its split entries:
+```sql
+-- Pattern: Query quick fill rules with split categories
+SELECT q.Z_PK as rule_id,
+       q.ZPAYEENAME as payee_name,
+       q.ZAMOUNT as amount,
+       cat.ZNAME as split_category,
+       s.ZSEQUENCENUMBER as split_seq
+FROM ZQUICKFILLRULE q
+LEFT JOIN ZQUICKFILLRULESPLITENTRY s ON s.ZQUICKFILLRULE = q.Z_PK
+LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK
+LIMIT 1;
+```
+
+#### The Anti-Pattern (To Avoid)
+Do not assume categories are stored directly on the `ZQUICKFILLRULE` table itself. Just like live transactions, quick fill rules use a split-entry structure (`ZQUICKFILLRULESPLITENTRY`) to support multi-category distributions.
+
+---
+
+## Annotated Everyday Recipes
+
+Use these robust SQL scripts to answer everyday financial questions directly.
+
+### Recipe A: Query Transactions (With Notes & Dynamic Entity Tag)
+
+Query transactions with custom ranges. Replaces `<CAT_ENT>` with the dynamically resolved CategoryTag entity number.
 
 ```sql
 SELECT t.Z_PK as transaction_id,
-       a.ZNAME as account_name, a.ZTYPENAME as account_type,
+       a.ZNAME as account_name,
+       a.ZTYPENAME as account_type,
        p.ZNAME as payee,
-       cat.ZNAME as category, parent_cat.ZNAME as parent_category,
+       cat.ZNAME as category,
+       parent_cat.ZNAME as parent_category,
        s.ZAMOUNT as amount,
        date(COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) + 978307200, 'unixepoch') as posted_date,
-       t.ZNOTE as note,                  -- transaction-level memo
-       s.ZNOTE as split_note             -- per-split memo
+       t.ZNOTE as note,
+       s.ZNOTE as split_note
 FROM ZTRANSACTION t
 JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
 LEFT JOIN ZUSERPAYEE p ON t.ZUSERPAYEE = p.Z_PK
 LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
 LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = <CAT_ENT>
 LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
-WHERE COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE)
-      BETWEEN (julianday('2025-01-01') - 2451910.5) * 86400
-          AND (julianday('2025-12-31') - 2451910.5) * 86400
+WHERE COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) 
+      BETWEEN (julianday('2026-01-01') - 2451910.5) * 86400 
+          AND (julianday('2026-12-31') - 2451910.5) * 86400
 ORDER BY COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) DESC
 LIMIT 100;
 ```
 
-### Spending by category
+### Recipe B: Spending By Category
+
+Analyze expenses grouped by category or parent category.
 
 ```sql
 SELECT COALESCE(parent_cat.ZNAME, cat.ZNAME) as category,
@@ -110,69 +284,83 @@ JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
 JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = <CAT_ENT>
 LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
 WHERE UPPER(a.ZTYPENAME) IN ('CHECKING', 'CREDITCARD')
-  AND s.ZAMOUNT < 0   -- expenses only
-  AND COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) BETWEEN ? AND ?
-GROUP BY category
-ORDER BY total_amount ASC;   -- most-negative (largest expense) first
-```
-
-### Spending over time (monthly)
-
-```sql
-SELECT strftime('%Y-%m', COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) + 978307200, 'unixepoch') as month,
-       SUM(s.ZAMOUNT) as total
-FROM ZTRANSACTION t
-JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
-JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
-WHERE UPPER(a.ZTYPENAME) IN ('CHECKING', 'CREDITCARD')
   AND s.ZAMOUNT < 0
-GROUP BY month
-ORDER BY month;
+  AND COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) 
+      BETWEEN (julianday('2026-01-01') - 2451910.5) * 86400 
+          AND (julianday('2026-12-31') - 2451910.5) * 86400
+GROUP BY category
+ORDER BY total_amount ASC;
 ```
 
-### Search payees
+### Recipe C: Portfolio Value Estimation
+
+Estimated holdings values mapped to the latest stored security quotes.
 
 ```sql
-SELECT p.Z_PK, p.ZNAME, COUNT(t.Z_PK) as txn_count
-FROM ZUSERPAYEE p
-LEFT JOIN ZTRANSACTION t ON t.ZUSERPAYEE = p.Z_PK
-WHERE p.ZNAME LIKE '%amazon%'
-GROUP BY p.Z_PK
-ORDER BY txn_count DESC;
-```
-
-### Investment portfolio
-
-Holdings are reconstructed from `ZLOT` (tax lots), not directly from `ZPOSITION` — Quicken tracks per-lot units and cost basis and rolls them up. The latest stored price comes from `ZSECURITYQUOTE.ZCLOSINGPRICE` for the most recent `ZQUOTEDATE` per security.
-
-```sql
--- Holdings: shares + cost basis, summed across lots per (account, security)
-SELECT a.ZNAME as account,
-       sec.ZNAME as security,
+SELECT a.ZNAME as account_name,
        sec.ZTICKER as ticker,
-       ROUND(SUM(l.ZLATESTUNITS), 6) as current_shares,
-       ROUND(SUM(l.ZLATESTCOSTBASIS), 2) as cost_basis
+       sec.ZNAME as security_name,
+       SUM(l.ZLATESTUNITS) as shares,
+       SUM(l.ZLATESTCOSTBASIS) as cost_basis,
+       q.ZCLOSINGPRICE as last_closing_price,
+       date(q.ZQUOTEDATE + 978307200, 'unixepoch') as quote_date,
+       (SUM(l.ZLATESTUNITS) * q.ZCLOSINGPRICE) as market_value
 FROM ZLOT l
-JOIN ZPOSITION pos ON l.ZPOSITION = pos.Z_PK
-JOIN ZSECURITY sec ON pos.ZSECURITY = sec.Z_PK
-JOIN ZACCOUNT a ON pos.ZACCOUNT = a.Z_PK
+JOIN ZPOSITION p ON l.ZPOSITION = p.Z_PK
+JOIN ZSECURITY sec ON p.ZSECURITY = sec.Z_PK
+JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK
+LEFT JOIN ZSECURITYQUOTE q ON q.ZSECURITY = sec.Z_PK 
+  AND q.ZQUOTEDATE = (SELECT MAX(q2.ZQUOTEDATE) FROM ZSECURITYQUOTE q2 WHERE q2.ZSECURITY = sec.Z_PK)
 WHERE l.ZLATESTUNITS > 0
-GROUP BY a.ZNAME, sec.ZNAME, sec.ZTICKER
-ORDER BY a.ZNAME, sec.ZNAME;
-
--- Last-known price per security (Quicken's stored quotes — may be days stale)
-SELECT sec.ZTICKER as ticker,
-       q.ZCLOSINGPRICE as price,
-       date(q.ZQUOTEDATE + 978307200, 'unixepoch') as price_date
-FROM ZSECURITYQUOTE q
-JOIN ZSECURITY sec ON q.ZSECURITY = sec.Z_PK
-WHERE sec.ZTICKER IS NOT NULL
-  AND q.ZQUOTEDATE = (SELECT MAX(q2.ZQUOTEDATE) FROM ZSECURITYQUOTE q2 WHERE q2.ZSECURITY = sec.Z_PK);
+GROUP BY account_name, ticker, security_name, last_closing_price, quote_date;
 ```
 
-## Workflow guidance
+### Recipe D: Query Transaction Tags (Dynamic Join Resolution)
 
-1. **Always start by orienting.** List accounts, look up the CategoryTag entity ID, and (if asked about a payee) run a payee discovery query — this is much cheaper than guessing wrong on a payee name and getting an empty result.
-2. **Echo the SQL you ran** when the answer is non-trivial. The user can re-run, modify, or audit it.
-3. **Be honest about limits.** Quicken's stored prices for investments may be days stale; transfers between accounts can double-count if you sum across all account types.
-4. **For enrichment / write workflows** (rare — usually the user just wants to read), see the "Writing back to the database" section in [`docs/schema.md`](https://github.com/dweekly/quicken-mac-mcp/blob/main/docs/schema.md). Always confirm with the user, always back up the `data` file first, always close Quicken before writing, always increment `Z_OPT`.
+Retrieve transaction splits alongside their associated user tags. Uses `Z_15USERTAGS` for splits (entity 15) and tags (entity 76).
+
+```sql
+SELECT s.Z_PK as split_id,
+       t.Z_PK as transaction_id,
+       date(COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) + 978307200, 'unixepoch') as posted_date,
+       p.ZNAME as payee,
+       s.ZAMOUNT as amount,
+       tag.ZNAME as tag_name
+FROM ZCASHFLOWTRANSACTIONENTRY s
+JOIN ZTRANSACTION t ON s.ZPARENT = t.Z_PK
+LEFT JOIN ZUSERPAYEE p ON t.ZUSERPAYEE = p.Z_PK
+JOIN Z_15USERTAGS j ON j.Z_15CASHFLOWTRANSACTIONENTRIES = s.Z_PK
+JOIN ZTAG tag ON j.Z_76USERTAGS = tag.Z_PK
+LIMIT 100;
+```
+
+### Recipe E: Query Active Quick-Fill Rules
+
+Retrieve quick-fill auto-categorization templates configured for your payees, sorted by last used timestamp.
+
+```sql
+SELECT q.Z_PK as rule_id,
+       q.ZPAYEENAME as payee_name,
+       q.ZTRANSACTIONTYPE as transaction_type,
+       q.ZAMOUNT as default_amount,
+       q.ZMEMO as default_memo,
+       s.ZSEQUENCENUMBER as split_seq,
+       cat.ZNAME as default_category,
+       s.ZAMOUNT as split_amount,
+       s.ZMEMO as split_memo,
+       date(q.ZLASTUSEDTIMESTAMP + 978307200, 'unixepoch') as last_used
+FROM ZQUICKFILLRULE q
+LEFT JOIN ZQUICKFILLRULESPLITENTRY s ON s.ZQUICKFILLRULE = q.Z_PK
+LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK
+ORDER BY q.ZLASTUSEDTIMESTAMP DESC
+LIMIT 100;
+```
+
+---
+
+## Agent Workflow Guidance
+
+1. **Auto-Detect and Verify Path**: Start by verifying the database location and confirming that the file has a non-zero size (verifying that it is unlocked).
+2. **Resolve Entity IDs**: Run the `CategoryTag` dynamic `Z_ENT` query first. Cache the result for subsequent queries.
+3. **Run Fuzzy Payee Pre-Queries**: If querying specific payees, perform a fuzzy group search on `ZUSERPAYEE` before filtering transactions to ensure no names are missed.
+4. **Enforce Read-Only**: Ensure all agent terminal commands run with `-readonly` flag. Do not attempt modification operations.
