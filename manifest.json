@@ -2,11 +2,17 @@
   "manifest_version": "0.3",
   "name": "quicken-mac-mcp",
   "display_name": "Quicken For Mac",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Read-only access to your Quicken For Mac financial data — Claude Skill plus MCP server",
-  "author": { "name": "David Weekly", "url": "https://github.com/dweekly" },
+  "author": {
+    "name": "David Weekly",
+    "url": "https://github.com/dweekly"
+  },
   "homepage": "https://dweekly.github.io/quicken-mac-mcp/",
-  "repository": { "type": "git", "url": "https://github.com/dweekly/quicken-mac-mcp.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dweekly/quicken-mac-mcp.git"
+  },
   "icon": "icon.png",
   "license": "MIT",
   "server": {
@@ -14,7 +20,9 @@
     "entry_point": "dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/index.js"],
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
       "env": {
         "QUICKEN_DB_PATH": "${user_config.database_path}"
       }
@@ -64,7 +72,11 @@
     }
   ],
   "compatibility": {
-    "platforms": ["darwin"],
-    "runtimes": { "node": ">=22.0.0" }
+    "platforms": [
+      "darwin"
+    ],
+    "runtimes": {
+      "node": ">=22.0.0"
+    }
   }
 }
