@@ -106,7 +106,8 @@ export function listPortfolio(db: Database.Database, args: PortfolioArgs) {
       result.market_value = Math.round(h.current_shares * dbq.price * 100) / 100;
 
       if (h.cost_basis > 0) {
-        const gainLoss = Math.round((h.current_shares * dbq.price - h.cost_basis) * 100) / 100;
+        const gainLoss =
+          Math.round((h.current_shares * dbq.price - h.cost_basis) * 100) / 100;
         result.gain_loss = gainLoss;
         result.gain_loss_pct = Math.round((gainLoss / h.cost_basis) * 10000) / 100;
       }

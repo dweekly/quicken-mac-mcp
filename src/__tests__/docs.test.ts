@@ -30,7 +30,9 @@ function hasQuickenTables(path: string): boolean {
   try {
     const testDb = new Database(path, { readonly: true });
     const tables = testDb
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'")
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'"
+      )
       .all();
     testDb.close();
     return tables.length > 0;
@@ -43,11 +45,7 @@ const describeWithDb =
   DB_PATH && existsSync(DB_PATH) && hasQuickenTables(DB_PATH) ? describe : describe.skip;
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const DOCS = [
-  "plugin/skills/quicken/SKILL.md",
-  "README.md",
-  "docs/schema.md",
-];
+const DOCS = ["plugin/skills/quicken/SKILL.md", "README.md", "docs/schema.md"];
 
 const CORE_DATA_UNIVERSALS = new Set(["Z_PK", "Z_ENT", "Z_OPT", "Z_NAME"]);
 
@@ -74,7 +72,9 @@ beforeAll(() => {
     ...CORE_DATA_UNIVERSALS,
   ]);
   for (const t of tableNames) {
-    for (const c of db.prepare(`PRAGMA table_info(${t})`).all() as Array<{ name: string }>) {
+    for (const c of db.prepare(`PRAGMA table_info(${t})`).all() as Array<{
+      name: string;
+    }>) {
       knownIdentifiers.add(c.name);
     }
   }
@@ -133,7 +133,9 @@ describeWithDb("docs cross-check: Z-token resolution", () => {
       const text = readFileSync(join(REPO_ROOT, docPath), "utf8");
       const tokens = extractZTokens(text);
       const unknown = [...tokens].filter((t) => !knownIdentifiers.has(t));
-      expect(unknown, `Unknown Z-tokens in ${docPath}: ${unknown.join(", ")}`).toEqual([]);
+      expect(unknown, `Unknown Z-tokens in ${docPath}: ${unknown.join(", ")}`).toEqual(
+        []
+      );
     });
   }
 });

@@ -40,7 +40,9 @@ function hasQuickenTables(path: string): boolean {
   try {
     const testDb = new Database(path, { readonly: true });
     const tables = testDb
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'")
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'"
+      )
       .all();
     testDb.close();
     return tables.length > 0;
@@ -168,7 +170,8 @@ describeWithDb("cross-tool consistency: accounts", () => {
     const types = [...new Set(accounts.map((a: any) => a.type.toUpperCase()))];
     // Pick one type that should have transactions
     const checkingAccounts = accounts.filter(
-      (a: any) => a.type.toUpperCase() === "CHECKING" || a.type.toUpperCase() === "CREDITCARD"
+      (a: any) =>
+        a.type.toUpperCase() === "CHECKING" || a.type.toUpperCase() === "CREDITCARD"
     );
     if (checkingAccounts.length > 0) {
       const txns = queryTransactions(db, {
@@ -177,7 +180,9 @@ describeWithDb("cross-tool consistency: accounts", () => {
       }) as any[];
       if (txns.length > 0) {
         txns.forEach((t) => {
-          expect(t.account_type.toUpperCase()).toBe(checkingAccounts[0].type.toUpperCase());
+          expect(t.account_type.toUpperCase()).toBe(
+            checkingAccounts[0].type.toUpperCase()
+          );
         });
       }
     }
@@ -231,10 +236,7 @@ describeWithDb("cross-tool consistency: spending totals", () => {
       (sum: number, r: any) => sum + r.total_amount,
       0
     );
-    const timeTotal = overTime.reduce(
-      (sum: number, r: any) => sum + r.total_amount,
-      0
-    );
+    const timeTotal = overTime.reduce((sum: number, r: any) => sum + r.total_amount, 0);
 
     // Totals should match within floating point tolerance
     expect(Math.abs(categoryTotal - timeTotal)).toBeLessThan(0.02);
@@ -400,9 +402,7 @@ describeWithDb("transaction data integrity", () => {
     // Note: transaction_id is NOT unique per result row because of splits,
     // but the combination of (transaction_id, category, amount) should be
     const txns = queryTransactions(db, { limit: 200 }) as any[];
-    const keys = txns.map(
-      (t) => `${t.transaction_id}|${t.category}|${t.amount}`
-    );
+    const keys = txns.map((t) => `${t.transaction_id}|${t.category}|${t.amount}`);
     const uniqueKeys = new Set(keys);
     expect(uniqueKeys.size).toBe(keys.length);
   });
@@ -422,9 +422,7 @@ describeWithDb("transaction data integrity", () => {
       const accounts = new Set(splitRows.map((t) => t.account_name));
       expect(accounts.size).toBe(1); // same account
       // Categories or amounts should differ between split entries
-      const catAmtPairs = new Set(
-        splitRows.map((t) => `${t.category}|${t.amount}`)
-      );
+      const catAmtPairs = new Set(splitRows.map((t) => `${t.category}|${t.amount}`));
       expect(catAmtPairs.size).toBeGreaterThan(1);
     }
   });
@@ -525,7 +523,10 @@ describeWithDb("spending aggregation integrity", () => {
       start_date: range.start,
       end_date: range.end,
     }) as any[];
-    const defaultTotal = defaultResult.reduce((s: number, r: any) => s + Math.abs(r.total_amount), 0);
+    const defaultTotal = defaultResult.reduce(
+      (s: number, r: any) => s + Math.abs(r.total_amount),
+      0
+    );
 
     // creditcard-only should be <= the default (checking + creditcard)
     const ccOnly = spendingByCategory(db, {
@@ -601,9 +602,7 @@ describeWithDb("raw_query safety", () => {
   });
 
   it("rejects CREATE TABLE", () => {
-    expect(() =>
-      rawQuery(db, { sql: "CREATE TABLE test (id INTEGER)" })
-    ).toThrow();
+    expect(() => rawQuery(db, { sql: "CREATE TABLE test (id INTEGER)" })).toThrow();
   });
 
   it("rejects ALTER TABLE", () => {

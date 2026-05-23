@@ -23,7 +23,11 @@ try {
 function hasQuickenTables(path: string): boolean {
   try {
     const testDb = new Database(path, { readonly: true });
-    const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'").all();
+    const tables = testDb
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'"
+      )
+      .all();
     testDb.close();
     return tables.length > 0;
   } catch {
@@ -31,7 +35,8 @@ function hasQuickenTables(path: string): boolean {
   }
 }
 
-const describeWithDb = DB_PATH && existsSync(DB_PATH) && hasQuickenTables(DB_PATH) ? describe : describe.skip;
+const describeWithDb =
+  DB_PATH && existsSync(DB_PATH) && hasQuickenTables(DB_PATH) ? describe : describe.skip;
 
 let db: Database.Database;
 
@@ -459,5 +464,4 @@ describeWithDb("list_portfolio", () => {
       expect(r).not.toHaveProperty("gain_loss");
     });
   });
-
 });

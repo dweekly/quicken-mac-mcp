@@ -31,10 +31,10 @@ try {
   if (msg.includes("NODE_MODULE_VERSION") || msg.includes("was compiled against")) {
     process.stderr.write(
       `FATAL: better-sqlite3 native module version mismatch.\n` +
-      `Running: Node.js ${process.version} (${process.arch})\n\n` +
-      `This typically happens when npx caches a build for one Node.js version,\n` +
-      `but the MCP host (e.g., Claude Desktop) runs a different one.\n\n` +
-      `Fix: rm -rf ~/.npm/_npx && restart the MCP server.\n`
+        `Running: Node.js ${process.version} (${process.arch})\n\n` +
+        `This typically happens when npx caches a build for one Node.js version,\n` +
+        `but the MCP host (e.g., Claude Desktop) runs a different one.\n\n` +
+        `Fix: rm -rf ~/.npm/_npx && restart the MCP server.\n`
     );
     process.exit(1);
   }
@@ -61,12 +61,16 @@ if (args[0] === "export") {
     console.log(`  Splits:       ${result.splits}`);
     console.log(`  Holdings:     ${result.holdings}`);
     console.log(`\nOutput: ${result.outputPath}`);
-    console.log(`\nYou can now query this database with any SQLite tool, or use it with Claude:`);
+    console.log(
+      `\nYou can now query this database with any SQLite tool, or use it with Claude:`
+    );
     console.log(`  sqlite3 "${result.outputPath}"`);
   } catch (err: any) {
     console.error(`Export failed: ${err.message}`);
     if (err.message?.includes("no such table")) {
-      console.error(`\nQuicken For Mac must be running (it encrypts its database when closed).`);
+      console.error(
+        `\nQuicken For Mac must be running (it encrypts its database when closed).`
+      );
       console.error(`Launch it with: open -a 'Quicken'`);
     }
     process.exit(1);

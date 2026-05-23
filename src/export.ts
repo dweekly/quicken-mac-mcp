@@ -154,16 +154,32 @@ function createSchema(out: Database.Database): void {
 
 /** Export accounts from Quicken to clean schema. */
 function exportAccounts(src: Database.Database, out: Database.Database): number {
-  const rows = src.prepare(`
+  const rows = src
+    .prepare(
+      `
     SELECT Z_PK, ZNAME, ZTYPENAME, ZACTIVE, ZCLOSED FROM ZACCOUNT ORDER BY ZNAME
-  `).all() as Array<{ Z_PK: number; ZNAME: string; ZTYPENAME: string; ZACTIVE: number; ZCLOSED: number }>;
+  `
+    )
+    .all() as Array<{
+    Z_PK: number;
+    ZNAME: string;
+    ZTYPENAME: string;
+    ZACTIVE: number;
+    ZCLOSED: number;
+  }>;
 
   const insert = out.prepare(`
     INSERT INTO accounts (id, name, type, is_active, is_closed) VALUES (?, ?, ?, ?, ?)
   `);
 
   for (const r of rows) {
-    insert.run(r.Z_PK, r.ZNAME, normalizeAccountType(r.ZTYPENAME), r.ZACTIVE ? 1 : 0, r.ZCLOSED ? 1 : 0);
+    insert.run(
+      r.Z_PK,
+      r.ZNAME,
+      normalizeAccountType(r.ZTYPENAME),
+      r.ZACTIVE ? 1 : 0,
+      r.ZCLOSED ? 1 : 0
+    );
   }
   return rows.length;
 }
@@ -172,7 +188,9 @@ function exportAccounts(src: Database.Database, out: Database.Database): number 
 function exportCategories(src: Database.Database, out: Database.Database): number {
   const entityId = getCategoryTagEntityId(src);
 
-  const rows = src.prepare(`
+  const rows = src
+    .prepare(
+      `
     SELECT
       c.Z_PK, c.ZNAME, c.ZTYPE,
       p.ZNAME as parent_name
@@ -180,8 +198,13 @@ function exportCategories(src: Database.Database, out: Database.Database): numbe
     LEFT JOIN ZTAG p ON c.ZPARENTCATEGORY = p.Z_PK
     WHERE c.Z_ENT = ?
     ORDER BY COALESCE(p.ZNAME, c.ZNAME), c.ZNAME
-  `).all(entityId) as Array<{
-    Z_PK: number; ZNAME: string; ZTYPE: number; parent_name: string | null;
+  `
+    )
+    .all(entityId) as Array<{
+    Z_PK: number;
+    ZNAME: string;
+    ZTYPE: number;
+    parent_name: string | null;
   }>;
 
   const insert = out.prepare(`
@@ -200,9 +223,13 @@ function exportCategories(src: Database.Database, out: Database.Database): numbe
 
 /** Export payees from Quicken to clean schema. */
 function exportPayees(src: Database.Database, out: Database.Database): number {
-  const rows = src.prepare(`
+  const rows = src
+    .prepare(
+      `
     SELECT Z_PK, ZNAME FROM ZUSERPAYEE WHERE ZNAME IS NOT NULL ORDER BY ZNAME
-  `).all() as Array<{ Z_PK: number; ZNAME: string }>;
+  `
+    )
+    .all() as Array<{ Z_PK: number; ZNAME: string }>;
 
   const insert = out.prepare(`
     INSERT INTO payees (id, name) VALUES (?, ?)
@@ -215,11 +242,16 @@ function exportPayees(src: Database.Database, out: Database.Database): number {
 }
 
 /** Export transactions and their splits from Quicken to clean schema. */
-function exportTransactions(src: Database.Database, out: Database.Database): { transactions: number; splits: number } {
+function exportTransactions(
+  src: Database.Database,
+  out: Database.Database
+): { transactions: number; splits: number } {
   const entityId = getCategoryTagEntityId(src);
 
   // First, export all transactions with their aggregate amounts
-  const txRows = src.prepare(`
+  const txRows = src
+    .prepare(
+      `
     SELECT
       t.Z_PK,
       COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) as date_raw,
@@ -232,9 +264,15 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
     LEFT JOIN ZUSERPAYEE p ON t.ZUSERPAYEE = p.Z_PK
     ORDER BY date_raw
-  `).all() as Array<{
-    Z_PK: number; date_raw: number | null; ZACCOUNT: number;
-    account_name: string; ZUSERPAYEE: number | null; payee_name: string | null;
+  `
+    )
+    .all() as Array<{
+    Z_PK: number;
+    date_raw: number | null;
+    ZACCOUNT: number;
+    account_name: string;
+    ZUSERPAYEE: number | null;
+    payee_name: string | null;
     ZNOTE: string | null;
   }>;
 
@@ -245,11 +283,15 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
 
   // Get total amounts per transaction
   const amountMap = new Map<number, number>();
-  const amountRows = src.prepare(`
+  const amountRows = src
+    .prepare(
+      `
     SELECT ZPARENT, ROUND(SUM(ZAMOUNT), 2) as total
     FROM ZCASHFLOWTRANSACTIONENTRY
     GROUP BY ZPARENT
-  `).all() as Array<{ ZPARENT: number; total: number }>;
+  `
+    )
+    .all() as Array<{ ZPARENT: number; total: number }>;
   for (const r of amountRows) {
     amountMap.set(r.ZPARENT, r.total);
   }
@@ -268,7 +310,9 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
   }
 
   // Now export splits
-  const splitRows = src.prepare(`
+  const splitRows = src
+    .prepare(
+      `
     SELECT
       s.Z_PK,
       s.ZPARENT,
@@ -281,9 +325,15 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE s.ZPARENT IS NOT NULL
     ORDER BY s.ZPARENT, s.Z_PK
-  `).all(entityId) as Array<{
-    Z_PK: number; ZPARENT: number; ZCATEGORYTAG: number | null;
-    category_name: string | null; parent_category: string | null; amount: number;
+  `
+    )
+    .all(entityId) as Array<{
+    Z_PK: number;
+    ZPARENT: number;
+    ZCATEGORYTAG: number | null;
+    category_name: string | null;
+    parent_category: string | null;
+    amount: number;
   }>;
 
   const insertSplit = out.prepare(`
@@ -292,7 +342,14 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
   `);
 
   for (const r of splitRows) {
-    insertSplit.run(r.Z_PK, r.ZPARENT, r.ZCATEGORYTAG, r.category_name, r.parent_category, r.amount);
+    insertSplit.run(
+      r.Z_PK,
+      r.ZPARENT,
+      r.ZCATEGORYTAG,
+      r.category_name,
+      r.parent_category,
+      r.amount
+    );
   }
 
   return { transactions: txRows.length, splits: splitRows.length };
@@ -301,7 +358,9 @@ function exportTransactions(src: Database.Database, out: Database.Database): { t
 /** Export investment holdings from Quicken to clean schema. */
 function exportHoldings(src: Database.Database, out: Database.Database): number {
   // Get holdings grouped by account + security
-  const holdingRows = src.prepare(`
+  const holdingRows = src
+    .prepare(
+      `
     SELECT
       a.ZNAME as account_name,
       s.ZNAME as security_name,
@@ -315,15 +374,22 @@ function exportHoldings(src: Database.Database, out: Database.Database): number 
     WHERE l.ZLATESTUNITS > 0
     GROUP BY a.ZNAME, s.ZNAME, s.ZTICKER
     ORDER BY a.ZNAME, s.ZNAME
-  `).all() as Array<{
-    account_name: string; security_name: string; ticker: string | null;
-    shares: number; cost_basis: number;
+  `
+    )
+    .all() as Array<{
+    account_name: string;
+    security_name: string;
+    ticker: string | null;
+    shares: number;
+    cost_basis: number;
   }>;
 
   // Get latest quotes per ticker
   const quoteMap = new Map<string, { price: number; date: number }>();
   try {
-    const quoteRows = src.prepare(`
+    const quoteRows = src
+      .prepare(
+        `
       SELECT
         s.ZTICKER as ticker,
         q.ZCLOSINGPRICE as price,
@@ -336,7 +402,9 @@ function exportHoldings(src: Database.Database, out: Database.Database): number 
           FROM ZSECURITYQUOTE q2
           WHERE q2.ZSECURITY = s.Z_PK
         )
-    `).all() as Array<{ ticker: string; price: number; quote_date_raw: number }>;
+    `
+      )
+      .all() as Array<{ ticker: string; price: number; quote_date_raw: number }>;
 
     for (const q of quoteRows) {
       quoteMap.set(q.ticker, { price: q.price, date: q.quote_date_raw });
@@ -355,9 +423,20 @@ function exportHoldings(src: Database.Database, out: Database.Database): number 
     const price = quote?.price ?? null;
     const priceDate = quote ? toIsoDate(quote.date) : null;
     const marketValue = price != null ? Math.round(h.shares * price * 100) / 100 : null;
-    const gainLoss = marketValue != null ? Math.round((marketValue - h.cost_basis) * 100) / 100 : null;
+    const gainLoss =
+      marketValue != null ? Math.round((marketValue - h.cost_basis) * 100) / 100 : null;
 
-    insert.run(h.account_name, h.security_name, h.ticker, h.shares, h.cost_basis, price, priceDate, marketValue, gainLoss);
+    insert.run(
+      h.account_name,
+      h.security_name,
+      h.ticker,
+      h.shares,
+      h.cost_basis,
+      price,
+      priceDate,
+      marketValue,
+      gainLoss
+    );
   }
 
   return holdingRows.length;
@@ -423,7 +502,14 @@ export function exportDatabase(outputPath: string, srcDbPath?: string): ExportRe
         // Investment tables may not exist in all databases
       }
 
-      writeMetadata(out, { accounts, categories, payees, transactions, splits, holdings });
+      writeMetadata(out, {
+        accounts,
+        categories,
+        payees,
+        transactions,
+        splits,
+        holdings,
+      });
 
       return { outputPath, accounts, categories, payees, transactions, splits, holdings };
     })();
@@ -436,7 +522,11 @@ export function exportDatabase(outputPath: string, srcDbPath?: string): ExportRe
     if (!success) {
       // Don't leave a partial output file behind — it would block re-runs.
       for (const p of [outputPath, `${outputPath}-wal`, `${outputPath}-shm`]) {
-        try { unlinkSync(p); } catch { /* may not exist */ }
+        try {
+          unlinkSync(p);
+        } catch {
+          /* may not exist */
+        }
       }
     }
   }

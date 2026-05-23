@@ -53,8 +53,10 @@ function buildFixture(path: string, opts: FixtureOptions = {}): void {
   const db = new Database(path);
   db.exec(FIXTURE_SCHEMA);
 
-  db.prepare("INSERT INTO Z_PRIMARYKEY (Z_NAME, Z_ENT) VALUES (?, ?)")
-    .run("CategoryTag", CATEGORY_TAG_ENT);
+  db.prepare("INSERT INTO Z_PRIMARYKEY (Z_NAME, Z_ENT) VALUES (?, ?)").run(
+    "CategoryTag",
+    CATEGORY_TAG_ENT
+  );
 
   // Accounts: one of each common type plus one closed account
   const accounts = [
@@ -62,9 +64,7 @@ function buildFixture(path: string, opts: FixtureOptions = {}): void {
     [2, "Visa", "CREDITCARD", 1, 0],
     [3, "Old Savings", "SAVINGS", 0, 1],
   ] as const;
-  const insertAcct = db.prepare(
-    "INSERT INTO ZACCOUNT VALUES (?, ?, ?, ?, ?)"
-  );
+  const insertAcct = db.prepare("INSERT INTO ZACCOUNT VALUES (?, ?, ?, ?, ?)");
   for (const a of accounts) insertAcct.run(...a);
 
   // Categories: one parent, two children, one income category
@@ -87,9 +87,7 @@ function buildFixture(path: string, opts: FixtureOptions = {}): void {
   //   tx 1000: split across Groceries + Restaurants on 2024-06-15
   //   tx 1001: single Salary income on 2024-06-30
   //   tx 1002: ZPOSTEDDATE null → COALESCE picks ZENTEREDDATE
-  const insertTx = db.prepare(
-    "INSERT INTO ZTRANSACTION VALUES (?, ?, ?, ?, ?, ?)"
-  );
+  const insertTx = db.prepare("INSERT INTO ZTRANSACTION VALUES (?, ?, ?, ?, ?, ?)");
   insertTx.run(1000, isoToCoreData("2024-06-15"), null, 1, 100, "weekly grocery");
   insertTx.run(1001, isoToCoreData("2024-06-30"), null, 1, 101, null);
   insertTx.run(1002, null, isoToCoreData("2024-07-01"), 2, 100, null);
@@ -172,10 +170,12 @@ describe("exportDatabase — schema", () => {
 
     const out = new Database(outPath, { readonly: true });
     const meta = Object.fromEntries(
-      (out.prepare("SELECT key, value FROM _export_meta").all() as Array<{
-        key: string;
-        value: string;
-      }>).map((r) => [r.key, r.value])
+      (
+        out.prepare("SELECT key, value FROM _export_meta").all() as Array<{
+          key: string;
+          value: string;
+        }>
+      ).map((r) => [r.key, r.value])
     );
     out.close();
 
@@ -228,7 +228,12 @@ describe("exportDatabase — data correctness", () => {
     const out = new Database(outPath, { readonly: true });
     const cats = out
       .prepare("SELECT name, parent_name, full_name, type FROM categories WHERE name = ?")
-      .get("Groceries") as { name: string; parent_name: string; full_name: string; type: string };
+      .get("Groceries") as {
+      name: string;
+      parent_name: string;
+      full_name: string;
+      type: string;
+    };
     const split = out
       .prepare(
         "SELECT category_name, parent_category, amount FROM transaction_splits WHERE id = ?"
@@ -271,7 +276,8 @@ describe("exportDatabase — data correctness", () => {
     exportDatabase(outPath, srcPath);
 
     const out = new Database(outPath, { readonly: true });
-    const count = (out.prepare("SELECT COUNT(*) AS n FROM payees").get() as { n: number }).n;
+    const count = (out.prepare("SELECT COUNT(*) AS n FROM payees").get() as { n: number })
+      .n;
     out.close();
     expect(count).toBe(2);
   });
@@ -288,7 +294,9 @@ describe("exportDatabase — Bug 1: NULL parent splits filtered", () => {
 
     const out = new Database(outPath, { readonly: true });
     const orphan = out
-      .prepare("SELECT COUNT(*) AS n FROM transaction_splits WHERE transaction_id IS NULL")
+      .prepare(
+        "SELECT COUNT(*) AS n FROM transaction_splits WHERE transaction_id IS NULL"
+      )
       .get() as { n: number };
     out.close();
     expect(orphan.n).toBe(0);
@@ -372,9 +380,7 @@ try {
 function liveDbReadable(path: string): boolean {
   try {
     const probe = new Database(path, { readonly: true });
-    const rows = probe
-      .prepare("SELECT 1 FROM ZACCOUNT LIMIT 1")
-      .all();
+    const rows = probe.prepare("SELECT 1 FROM ZACCOUNT LIMIT 1").all();
     probe.close();
     return rows.length > 0;
   } catch {
@@ -404,12 +410,17 @@ describeWithLiveDb("exportDatabase — live Quicken DB", () => {
 
     const src = new Database(LIVE_DB_PATH!, { readonly: true });
     const srcCounts = {
-      accounts: (src.prepare("SELECT COUNT(*) AS n FROM ZACCOUNT").get() as { n: number }).n,
-      transactions: (src.prepare("SELECT COUNT(*) AS n FROM ZTRANSACTION").get() as { n: number }).n,
+      accounts: (src.prepare("SELECT COUNT(*) AS n FROM ZACCOUNT").get() as { n: number })
+        .n,
+      transactions: (
+        src.prepare("SELECT COUNT(*) AS n FROM ZTRANSACTION").get() as { n: number }
+      ).n,
       // Splits: count entries with a non-null parent (orphans are filtered).
       splits: (
         src
-          .prepare("SELECT COUNT(*) AS n FROM ZCASHFLOWTRANSACTIONENTRY WHERE ZPARENT IS NOT NULL")
+          .prepare(
+            "SELECT COUNT(*) AS n FROM ZCASHFLOWTRANSACTIONENTRY WHERE ZPARENT IS NOT NULL"
+          )
           .get() as { n: number }
       ).n,
     };
@@ -459,8 +470,12 @@ describeWithLiveDb("exportDatabase — live Quicken DB", () => {
     exportDatabase(outPath, LIVE_DB_PATH);
 
     const out = new Database(outPath, { readonly: true });
-    const monthlyCount = (out.prepare("SELECT COUNT(*) AS n FROM monthly_spending").get() as { n: number }).n;
-    const cashFlowCount = (out.prepare("SELECT COUNT(*) AS n FROM cash_flow").get() as { n: number }).n;
+    const monthlyCount = (
+      out.prepare("SELECT COUNT(*) AS n FROM monthly_spending").get() as { n: number }
+    ).n;
+    const cashFlowCount = (
+      out.prepare("SELECT COUNT(*) AS n FROM cash_flow").get() as { n: number }
+    ).n;
     out.close();
 
     expect(monthlyCount).toBeGreaterThan(0);
@@ -472,10 +487,12 @@ describeWithLiveDb("exportDatabase — live Quicken DB", () => {
 
     const out = new Database(outPath, { readonly: true });
     const meta = Object.fromEntries(
-      (out.prepare("SELECT key, value FROM _export_meta").all() as Array<{
-        key: string;
-        value: string;
-      }>).map((r) => [r.key, r.value])
+      (
+        out.prepare("SELECT key, value FROM _export_meta").all() as Array<{
+          key: string;
+          value: string;
+        }>
+      ).map((r) => [r.key, r.value])
     );
     out.close();
 
