@@ -24,6 +24,7 @@
     "read-only"
   ],
   "bin": {
+    "qmac": "dist/index.js",
     "quicken-mac-mcp": "dist/index.js"
   },
   "main": "dist/index.js",

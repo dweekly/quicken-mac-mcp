@@ -101,6 +101,39 @@ These are the eight prepackaged tools the MCP server exposes. The skill covers t
 | `list_portfolio` | List investment holdings with shares, cost basis, and stored Quicken price quotes. |
 | `raw_query` | Run arbitrary SELECT queries (500-row limit). |
 
+## Self-Documenting Command-Line Interface (`qmac`)
+
+This project includes a fully featured, self-documenting command-line interface `qmac` that allows you to query your Quicken SQLite database directly from the terminal without going through an MCP client.
+
+### Features:
+- **Centralized Schema Validation**: Arguments are dynamically coerced to correct types (numbers, booleans, arrays) and validated.
+- **Subcommand Help (`--help` / `-h`)**: Easily inspect parameter descriptions and types for any subcommand (e.g. `qmac spending-by-category --help`).
+- **Syntax Error Auto-Help**: Providing incorrect syntax or missing required fields outputs a precise error message along with the subcommand's help page.
+- **Integrated Manual (`qmac man`)**: Renders the complete, stylized UNIX man page guide right in your shell.
+- **Premium ASCII Table Layout**: Columns are dynamically auto-sized, numbers are right-aligned, and headers are formatted for supreme clarity. Use `--json` to get raw data for scripting.
+
+### Example Commands:
+
+```bash
+# General help
+qmac --help
+
+# Render stylized manual page
+qmac man
+
+# List checking accounts
+qmac list-accounts --account-type checking
+
+# Find Costco transactions over $100 in 2024
+qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --min-amount -100
+
+# Get subcategory spending breakdown for Q1 2025
+qmac spending-by-category --start-date 2025-01-01 --end-date 2025-03-31 --group-by category
+
+# Display investment portfolio holding valuations
+qmac list-portfolio
+```
+
 ## Example prompts
 
 - "List my accounts"

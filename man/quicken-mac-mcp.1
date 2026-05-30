@@ -1,0 +1,113 @@
+.TH QUICKEN-MAC-MCP 1 "May 2026" "quicken-mac-mcp v1.4.0" "User Commands"
+.SH NAME
+quicken-mac-mcp \- Self-documenting CLI and MCP server for Quicken For Mac financial data
+.SH SYNOPSIS
+.B quicken-mac-mcp
+[\fIcommand\fR] [\fIoptions\fR]
+.SH DESCRIPTION
+.B quicken-mac-mcp
+is a dual-purpose tool providing read-only access to your Quicken For Mac database. It acts as both a Model Context Protocol (MCP) server for AI assistants (like Claude) and a self-documenting command-line interface (CLI) for direct personal query and analysis.
+.PP
+.B IMPORTANT:
+Quicken For Mac must be running while using this tool. Quicken encrypts its database bundle when the application is closed. The database is only decrypted and readable while the application is active.
+.SH GLOBAL OPTIONS
+.TP
+.BR \-d ", " \-\-db " \fIpath\fR"
+Explicit path to the Quicken SQLite database file (typically located at \fI~/Documents/*.quicken/data\fR). Overrides environment variables and automatic detection.
+.TP
+.BR \-h ", " \-\-help
+Show the general help manual or subcommand-specific help documentation.
+.TP
+.BR \-\-json
+Output result rows as raw, formatted JSON instead of terminal ASCII tables.
+.TP
+.BR \-v ", " \-\-version
+Show program version.
+.SH CORE COMMANDS
+.TP
+.B mcp
+Start the Model Context Protocol (MCP) server over standard input/output (stdio). This is the default command executed if no subcommand is supplied.
+.TP
+.BI export " [output_path] [source_db_path]"
+Run the high-speed ETL pipeline to export Quicken's complex Core Data tables into a clean, normalized, denormalized SQLite database file. Defaults to saving to \fI~/Documents/quicken-export.db\fR.
+.TP
+.B man
+Render this manual page guide directly in your terminal using clear styles and colors.
+.SH DATABASE QUERY SUBCOMMANDS
+All query subcommands accept arguments using either snake_case (\fI\-\-start_date\fR), kebab-case (\fI\-\-start\-date\fR), or camelCase (\fI\-\-startDate\fR).
+.TP
+.BI list_accounts " [\-\-account\-type \fItype\fR]"
+List all bank, savings, credit card, investment, and loan accounts.
+.TP
+.BI list_categories " [\-\-type \fIexpense|income\fR]"
+List income and expense categories in their full parent-child hierarchical paths.
+.TP
+.BI query_transactions " [\fIfilters\fR]"
+Query transactions with flexible parameters. Returns one row per split entry.
+Supported filters:
+.RS
+.IP "\fB\-\-start\-date\fR, \fB\-\-end\-date\fR" 8
+ISO 8601 dates (e.g. 2024-01-01).
+.IP "\fB\-\-account\-types\fR" 8
+Array of account types (e.g. checking creditcard).
+.IP "\fB\-\-account\-names\fR" 8
+Array of exact account names.
+.IP "\fB\-\-min\-amount\fR, \fB\-\-max\-amount\fR" 8
+Transaction amount range.
+.IP "\fB\-\-payee\-search\fR" 8
+LIKE pattern merchant name.
+.IP "\fB\-\-category\fR" 8
+LIKE pattern category path.
+.IP "\fB\-\-limit\fR" 8
+Max rows to return (default 100, max 1000).
+.RE
+.TP
+.BI spending_by_category " \-\-start\-date \fIdate\fR \-\-end\-date \fIdate\fR [\fIoptions\fR]"
+Aggregate expenses grouped by parent or subcategory, sorted by spending magnitude.
+Supported options:
+.RS
+.IP "\fB\-\-account\-types\fR, \fB\-\-account\-names\fR" 8
+Filter to specific accounts.
+.IP "\fB\-\-group\-by\fR" 8
+Choose "parent_category" (top-level, default) or "category" (subcategory).
+.RE
+.TP
+.BI spending_over_time " \-\-start\-date \fIdate\fR \-\-end\-date \fIdate\fR [\fIoptions\fR]"
+Monthly spending trends over time.
+Supported options:
+.RS
+.IP "\fB\-\-account\-types\fR, \fB\-\-account\-names\fR" 8
+Filter to specific accounts.
+.IP "\fB\-\-group\-by\-category\fR" 8
+If set to true, breaks down each month by top-level category.
+.RE
+.TP
+.BI search_payees " \-\-query \fImerchant_name\fR [\-\-limit \fInum\fR]"
+Search registered merchant/payee names. Returns payee names sorted by transaction count.
+.TP
+.BI list_portfolio " [\-\-account\-names \fInames\fR]"
+List active investment security units, cost basis, last stored Quicken prices, and gains/losses.
+.TP
+.BI raw_query " \-\-sql \fIselect_statement\fR"
+Run custom SQLite SELECT queries directly against Quicken's database. Write operations (INSERT, UPDATE, DELETE) are rejected. Result limit capped at 500 rows.
+.SH ENVIRONMENT VARIABLES
+.TP
+.B QUICKEN_DB_PATH
+Set this environment variable to specify the absolute path to your Quicken SQLite file. Avoids needing the \fI\-\-db\fR argument on every execution.
+.SH EXAMPLES
+.IP "Start the MCP server for Claude Desktop"
+quicken-mac-mcp
+.IP "List all checked and credit card accounts"
+quicken-mac-mcp list-accounts --account-type checking
+.IP "Find Costco transactions over $100 in 2024"
+quicken-mac-mcp query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --min-amount -100
+.IP "Get food and groceries spending by subcategory for Q1 2025"
+quicken-mac-mcp spending-by-category --start-date 2025-01-01 --end-date 2025-03-31 --group-by category
+.IP "Check investment portfolio value"
+quicken-mac-mcp list-portfolio
+.IP "Read the integrated man page"
+quicken-mac-mcp man
+.SH AUTHOR
+Written by David Weekly.
+.SH SEE ALSO
+SQLite documentation, Model Context Protocol spec.
