@@ -142,6 +142,20 @@ export function diagnosePath(filePath: string): string {
   return hints.join("\n");
 }
 
+/**
+ * Probe whether an open Quicken database is decrypted. When Quicken For Mac is
+ * closed it swaps the bundle for an encrypted stub that has none of the expected
+ * Core Data tables, so the presence of ZACCOUNT is our decryption signal.
+ */
+export function isQuickenDecrypted(db: Database.Database): boolean {
+  const row = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='ZACCOUNT' LIMIT 1"
+    )
+    .get();
+  return !!row;
+}
+
 export function createDbAccessor(dbPath?: string): () => Database.Database {
   let db: Database.Database | null = null;
   let cachedIno: bigint | null = null;
@@ -168,29 +182,32 @@ export function createDbAccessor(dbPath?: string): () => Database.Database {
     if (!db) {
       try {
         db = new Database(resolvedPath, { readonly: true });
-        
-        // Eagerly verify that the database is unencrypted (i.e. Quicken For Mac is running)
-        // If Quicken is closed, the SQLite file is encrypted and query fails with "no such table" or encrypted error.
-        const decrypted = db
-          .prepare(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='ZACCOUNT' LIMIT 1"
-          )
-          .get();
-        if (!decrypted) {
+
+        // Eagerly verify the database is decrypted (i.e. Quicken For Mac is
+        // running). When Quicken is closed the file is an encrypted stub with
+        // none of the expected tables, so fail fast with a clear message
+        // instead of a cryptic "no such table" on the first real query.
+        if (!isQuickenDecrypted(db)) {
           throw new Error("Quicken database is encrypted.");
         }
       } catch (err: any) {
         if (db) {
           try {
             db.close();
-          } catch { /* ignore close error */ }
+          } catch {
+            /* ignore close error */
+          }
           db = null;
         }
-        if (err.message.includes("no such table") || err.message.includes("encrypted")) {
-          throw new Error("Quicken database is encrypted. Quicken For Mac must be running to decrypt your financial data.", { cause: err });
+        const msg = String(err?.message ?? err);
+        if (msg.includes("no such table") || msg.includes("encrypted")) {
+          throw new Error(
+            "Quicken database is encrypted. Quicken For Mac must be running to decrypt your financial data.",
+            { cause: err }
+          );
         }
         const diagnosis = diagnosePath(resolvedPath);
-        throw new Error(`${err.message}\n\n${diagnosis}`, { cause: err });
+        throw new Error(`${msg}\n\n${diagnosis}`, { cause: err });
       }
     }
     return db;

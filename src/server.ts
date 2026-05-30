@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { z } from "zod";
 import Database from "better-sqlite3";
 import { toolsRegistry } from "./tools/registry.js";
-import { detectQuickenDb } from "./db.js";
+import { detectQuickenDb, isQuickenDecrypted } from "./db.js";
 
 // Read the package version at module load so the MCP server's serverInfo
 // reports the same version that's published to npm / bundled in the .mcpb,
@@ -41,12 +41,7 @@ function isDatabaseDecrypted(): boolean {
     const resolvedPath = process.env.QUICKEN_DB_PATH || detectQuickenDb();
     const db = new Database(resolvedPath, { readonly: true });
     try {
-      const row = db
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='ZACCOUNT' LIMIT 1"
-        )
-        .get();
-      return !!row;
+      return isQuickenDecrypted(db);
     } finally {
       db.close();
     }
@@ -75,7 +70,7 @@ export function formatToolError(err: any) {
     text +=
       "\n\nIf Quicken For Mac is not running, open it first: open -a 'Quicken'\n" +
       "Then wait a few seconds and retry.";
-  } else if (msg.includes("no such table")) {
+  } else if (msg.includes("no such table") || msg.includes("encrypted")) {
     if (!isDatabaseDecrypted()) {
       text +=
         "\n\nQuicken For Mac is not running. Quicken encrypts its database when " +
