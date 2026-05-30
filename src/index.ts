@@ -21,7 +21,7 @@ import { join } from "path";
 import Database from "better-sqlite3";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createDbAccessor } from "./db.js";
-import { createServer } from "./server.js";
+import { createServer, sanitizeError } from "./server.js";
 import { toolsRegistry, ToolDef } from "./tools/registry.js";
 import { formatTable } from "./cli-table.js";
 import { createRequire } from "node:module";
@@ -422,7 +422,7 @@ async function run() {
       );
       console.log(`  sqlite3 "${result.outputPath}"`);
     } catch (err: any) {
-      console.error(`Export failed: ${err.message}`);
+      console.error(`Export failed: ${sanitizeError(err)}`);
       if (err.message?.includes("no such table")) {
         console.error(
           `\nQuicken For Mac must be running (it encrypts its database when closed).`
@@ -478,7 +478,7 @@ async function run() {
       }
     } catch (err: any) {
       console.error(color.red(color.bold("Database Error:")));
-      console.error(color.red(`  ${err.message}`));
+      console.error(color.red(`  ${sanitizeError(err)}`));
       if (
         err.message.includes("no such table") ||
         err.message.includes("unable to open database")
