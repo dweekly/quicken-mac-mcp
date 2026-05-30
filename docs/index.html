@@ -419,6 +419,32 @@
     </section>
 
     <section class="card">
+      <h2>Self-Documenting CLI (<code>qmac</code>) <span class="badge badge-new">New</span></h2>
+      <p>
+        In addition to AI integrations, this project now ships with a powerful, zero-dependency local command-line interface named <code>qmac</code>. It allows you to query your Quicken SQLite database directly from your terminal with auto-formatting, type validation, and fallback subcommand help.
+      </p>
+      <p>Exposes all prepackaged queries as subcommands, with premium features:</p>
+      <ul>
+        <li><strong>ASCII/Unicode Table Engine</strong>: Automatically auto-sizes terminal columns, formats column headers nicely, and right-aligns numbers/currencies. Use <code>--json</code> to bypass formatting.</li>
+        <li><strong>Subcommand Help</strong>: Run <code>qmac &lt;command&gt; --help</code> to dynamically inspect argument lists, types, and descriptions.</li>
+        <li><strong>Syntax Error Auto-Help</strong>: Providing incorrect flags instantly displays the parsing error followed by that command's help page.</li>
+        <li><strong>Integrated UNIX Manual Page</strong>: Run <code>qmac man</code> to read a fully colorized manual guide in your shell.</li>
+      </ul>
+      <p>Example commands:</p>
+      <pre><code># General help manual
+qmac --help
+
+# Render stylized manual page
+qmac man
+
+# List checking accounts
+qmac list-accounts --account-type checking
+
+# Find Costco transactions over $100 in 2024
+qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --max-amount -100</code></pre>
+    </section>
+
+    <section class="card">
       <h2>Sovereign Exporter <span class="badge badge-new">New</span></h2>
       <p>
         Want to free your multi-decade financial records permanently? This project includes a zero-dependency, pure Python command-line tool that conects to your active Quicken database and parses it into a fully portable, normalised folder package.
