@@ -481,7 +481,8 @@ async function run() {
       console.error(color.red(`  ${sanitizeError(err)}`));
       if (
         err.message.includes("no such table") ||
-        err.message.includes("unable to open database")
+        err.message.includes("unable to open database") ||
+        err.message.includes("encrypted")
       ) {
         console.error();
         console.error(color.yellow("Troubleshooting:"));

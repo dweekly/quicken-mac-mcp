@@ -168,7 +168,27 @@ export function createDbAccessor(dbPath?: string): () => Database.Database {
     if (!db) {
       try {
         db = new Database(resolvedPath, { readonly: true });
+        
+        // Eagerly verify that the database is unencrypted (i.e. Quicken For Mac is running)
+        // If Quicken is closed, the SQLite file is encrypted and query fails with "no such table" or encrypted error.
+        const decrypted = db
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='ZACCOUNT' LIMIT 1"
+          )
+          .get();
+        if (!decrypted) {
+          throw new Error("Quicken database is encrypted.");
+        }
       } catch (err: any) {
+        if (db) {
+          try {
+            db.close();
+          } catch { /* ignore close error */ }
+          db = null;
+        }
+        if (err.message.includes("no such table") || err.message.includes("encrypted")) {
+          throw new Error("Quicken database is encrypted. Quicken For Mac must be running to decrypt your financial data.", { cause: err });
+        }
         const diagnosis = diagnosePath(resolvedPath);
         throw new Error(`${err.message}\n\n${diagnosis}`, { cause: err });
       }
