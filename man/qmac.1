@@ -1,4 +1,4 @@
-.TH QMAC 1 "May 2026" "qmac v1.4.0" "User Commands"
+.TH QMAC 1 "May 2026" "qmac v1.5.0" "User Commands"
 .SH NAME
 qmac \- Self-documenting CLI and MCP server for Quicken For Mac financial data
 .SH SYNOPSIS
@@ -100,7 +100,7 @@ qmac
 .IP "List all checked and credit card accounts"
 qmac list-accounts --account-type checking
 .IP "Find Costco transactions over $100 in 2024"
-qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --min-amount -100
+qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --max-amount -100
 .IP "Get food and groceries spending by subcategory for Q1 2025"
 qmac spending-by-category --start-date 2025-01-01 --end-date 2025-03-31 --group-by category
 .IP "Check investment portfolio value"

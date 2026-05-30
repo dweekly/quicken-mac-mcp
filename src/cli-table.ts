@@ -81,20 +81,23 @@ export function formatTable(data: unknown): string {
     return "No columns to display.";
   }
 
-  // Determine alignments (numbers are right-aligned, everything else is left-aligned)
+  // Determine alignments. A column is right-aligned only when every populated
+  // cell is a number, so a stray null or text-leading row can't left-align an
+  // otherwise-numeric column (or vice versa). Empty/all-null columns stay left.
   const alignments: Record<string, "left" | "right"> = {};
   for (const k of keys) {
-    let isNumeric = false;
+    let sawValue = false;
+    let allNumeric = true;
     for (const r of rows) {
       const val = r[k];
-      if (val !== null && val !== undefined) {
-        if (typeof val === "number") {
-          isNumeric = true;
-        }
+      if (val === null || val === undefined) continue;
+      sawValue = true;
+      if (typeof val !== "number") {
+        allNumeric = false;
         break;
       }
     }
-    alignments[k] = isNumeric ? "right" : "left";
+    alignments[k] = sawValue && allNumeric ? "right" : "left";
   }
 
   // Map header labels and calculate column widths

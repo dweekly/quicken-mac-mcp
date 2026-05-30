@@ -1,4 +1,4 @@
-.TH QUICKEN-MAC-MCP 1 "May 2026" "quicken-mac-mcp v1.4.0" "User Commands"
+.TH QUICKEN-MAC-MCP 1 "May 2026" "quicken-mac-mcp v1.5.0" "User Commands"
 .SH NAME
 quicken-mac-mcp \- Self-documenting CLI and MCP server for Quicken For Mac financial data
 .SH SYNOPSIS
@@ -100,7 +100,7 @@ quicken-mac-mcp
 .IP "List all checked and credit card accounts"
 quicken-mac-mcp list-accounts --account-type checking
 .IP "Find Costco transactions over $100 in 2024"
-quicken-mac-mcp query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --min-amount -100
+quicken-mac-mcp query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --max-amount -100
 .IP "Get food and groceries spending by subcategory for Q1 2025"
 quicken-mac-mcp spending-by-category --start-date 2025-01-01 --end-date 2025-03-31 --group-by category
 .IP "Check investment portfolio value"

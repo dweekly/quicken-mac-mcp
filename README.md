@@ -125,7 +125,7 @@ qmac man
 qmac list-accounts --account-type checking
 
 # Find Costco transactions over $100 in 2024
-qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --min-amount -100
+qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --max-amount -100
 
 # Get subcategory spending breakdown for Q1 2025
 qmac spending-by-category --start-date 2025-01-01 --end-date 2025-03-31 --group-by category

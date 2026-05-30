@@ -59,7 +59,9 @@ const color = {
 
 function printGeneralHelp() {
   const c = color;
-  console.log(`${c.bold("Quicken Mac CLI (qmac) & MCP Server")} ${c.dim(`(v${pkg.version})`)}`);
+  console.log(
+    `${c.bold("Quicken Mac CLI (qmac) & MCP Server")} ${c.dim(`(v${pkg.version})`)}`
+  );
   console.log();
   console.log(`${c.bold("Usage:")}`);
   console.log(`  qmac [command] [options]`);
@@ -144,9 +146,7 @@ function printManPage() {
   console.log();
 
   console.log(c.bold("NAME"));
-  console.log(
-    "       qmac - Self-documenting CLI and MCP server for Quicken For Mac"
-  );
+  console.log("       qmac - Self-documenting CLI and MCP server for Quicken For Mac");
   console.log();
 
   console.log(c.bold("SYNOPSIS"));
@@ -154,9 +154,7 @@ function printManPage() {
   console.log();
 
   console.log(c.bold("DESCRIPTION"));
-  console.log(
-    "       qmac is a dual-purpose tool providing read-only access to"
-  );
+  console.log("       qmac is a dual-purpose tool providing read-only access to");
   console.log(
     "       your Quicken For Mac database. It acts as both a Model Context Protocol"
   );
@@ -242,13 +240,11 @@ function printManPage() {
   console.log(`              ${c.cyan("qmac")}`);
   console.log();
   console.log("       List checking accounts:");
-  console.log(
-    `              ${c.cyan("qmac list-accounts --account-type checking")}`
-  );
+  console.log(`              ${c.cyan("qmac list-accounts --account-type checking")}`);
   console.log();
   console.log("       Find Costco transactions over $100 in 2024:");
   console.log(
-    `              ${c.cyan("qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --min-amount -100")}`
+    `              ${c.cyan("qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-search costco --max-amount -100")}`
   );
   console.log();
   console.log("       Get subcategory spending details for Q1 2025:");
@@ -505,17 +501,36 @@ async function run() {
   }
 
   // 6. MCP server mode (default fallback or explicit 'mcp')
-  // We preserve backwards-compatibility: if the first arg is not a command, it could be the DB path.
   const isExplicitMcp = activeSubcommand === "mcp";
-  const explicitDbPath = (isExplicitMcp ? dbPath : rawArgs[0]) || dbPath || undefined;
 
-  // If first arg doesn't match and starts with a dash or no sub-commands but invalid subcommand:
-  if (rawArgs.length > 0 && !isExplicitMcp && !explicitDbPath && firstPositional) {
-    console.error(color.red(`Unknown command: ${firstPositional}`));
-    console.error();
-    printGeneralHelp();
-    process.exit(1);
+  // A leftover bareword positional that isn't `mcp` and didn't match a tool is
+  // either an explicit DB path (legacy `qmac /path/to/data` contract) or a typo.
+  // A real Quicken database path always points inside a .quicken bundle, so it
+  // contains a path separator; a mistyped subcommand never does. Treat it as a
+  // path only when it looks like one — otherwise report an unknown command
+  // instead of silently starting a server pointed at a bogus path.
+  const looksLikePath = (s?: string): boolean =>
+    !!s && (s.includes("/") || s.includes("\\"));
+
+  // Use the parsed `subcommand` (a positional that survived flag consumption),
+  // not the raw first non-dash token — otherwise the value of `-d <path>` would
+  // be misread as a command.
+  let positionalDbPath: string | undefined;
+  if (!isExplicitMcp && subcommand) {
+    if (looksLikePath(subcommand)) {
+      positionalDbPath = subcommand;
+    } else {
+      console.error(color.red(`Unknown command: ${subcommand}`));
+      console.error();
+      printGeneralHelp();
+      process.exit(1);
+    }
   }
+
+  // Resolution order: explicit -d/--db flag first, then the legacy positional
+  // path. (Previously this read rawArgs[0] directly, which clobbered the parsed
+  // dbPath with the literal "-d"/"--db" flag string.)
+  const explicitDbPath = dbPath || positionalDbPath || undefined;
 
   const getDb = createDbAccessor(explicitDbPath);
   const server = createServer(getDb);
