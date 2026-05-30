@@ -2,9 +2,7 @@ class Qmac < Formula
   desc "Self-documenting CLI and MCP server for Quicken For Mac"
   homepage "https://dweekly.github.io/quicken-mac-mcp/"
   url "https://registry.npmjs.org/quicken-mac-mcp/-/quicken-mac-mcp-1.5.0.tgz"
-  # TODO: after `npm publish` of 1.5.0, set this to the real checksum:
-  #   shasum -a 256 "$(npm pack quicken-mac-mcp@1.5.0 2>/dev/null)"
-  sha256 "REPLACE_WITH_1.5.0_TARBALL_SHA256"
+  sha256 "1b2abab2869811c431630378aea96b21de42b004b9ae2654f238c75414171f7d"
   license "MIT"
 
   depends_on "node"
