@@ -202,6 +202,10 @@ npm run format    # prettier
 npm run dev       # run server locally
 ```
 
+Set `QUICKEN_DB_PATH` before `npm test` if `~/Documents` holds more than one `.quicken` bundle; otherwise the live-schema suites skip.
+
+Known issues and planned work live in [`ROADMAP.md`](ROADMAP.md) — open bugs, developer-experience gaps, and deferred dependency upgrades (fresh as of 2026-08-14).
+
 ## Docker
 
 ```bash
