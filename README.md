@@ -14,7 +14,7 @@ The database is **always opened read-only** — your Quicken data is never modif
 
 This repo ships two artifacts that share the same schema knowledge ([`docs/schema.md`](docs/schema.md)):
 
-- **Skill** ([`plugin/skills/quicken/SKILL.md`](plugin/skills/quicken/SKILL.md)) — teaches Claude to read the Quicken SQLite database directly with the `sqlite3` CLI. Works in Claude Code and any other Claude surface that loads skills. **No native module install, no MCP server process — just SQL.** This is the recommended path.
+- **Skill** ([`plugin/skills/quicken/SKILL.md`](plugin/skills/quicken/SKILL.md)) — teaches Claude to probe and read the Quicken SQLite database directly with Python 3's standard-library SQLite support. Its focused [`references/`](plugin/skills/quicken/references) cover balances, cash flow, investments, budgets, tags, and QuickFill rules. Works in Claude Code and any other Claude surface that loads skills. **No native module install or MCP server process.** This is the recommended path.
 - **MCP server** — wraps the same SQL recipes as eight prepackaged tools (`list_accounts`, `query_transactions`, `spending_by_category`, …). Use it when you're working in a non-Claude MCP client (Cursor, Cline, mcp-remote bridges) that can't load skills, or when you'd rather call typed tools than have Claude write SQL.
 
 The Claude Code plugin install (`claude plugin install quicken-mac-mcp`) bundles **both**, with the skill leading and the MCP tools available as shortcuts.
@@ -84,7 +84,7 @@ If you have multiple Quicken files, or your `.quicken` bundle isn't in `~/Docume
 }
 ```
 
-By default, the server auto-detects your Quicken database by picking the most recently modified `.quicken` bundle in `~/Documents`.
+By default, the server auto-detects your Quicken database only when exactly one `.quicken` bundle exists in `~/Documents`. If multiple bundles exist, it refuses to guess; set `QUICKEN_DB_PATH` explicitly.
 
 ## MCP tools
 

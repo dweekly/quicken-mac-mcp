@@ -27,7 +27,7 @@ Resolve the helper path relative to the skill's `SKILL.md`, then run the bundled
 python3 <skill-directory>/scripts/quicken_db.py user-tag-schema --db "/path/to/File.quicken/data"
 ```
 
-The command searches `sqlite_master` and validates the actual table and column names. To inspect manually:
+The command searches `sqlite_master`, validates every returned identifier, and fails if the join table or either relationship column is missing or ambiguous. To inspect manually:
 
 ```sql
 SELECT name, sql

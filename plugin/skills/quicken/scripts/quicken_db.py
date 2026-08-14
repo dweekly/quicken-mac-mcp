@@ -159,8 +159,15 @@ def discover_user_tag_schema(path: Path) -> dict[str, Any]:
                     f"PRAGMA table_info({quoted_table})"
                 ).fetchall()
             ]
+            for column_name in columns:
+                quote_identifier(column_name)
             entry_columns = [name for name in columns if name.startswith(entry_prefix)]
             tag_columns = [name for name in columns if name.startswith(tag_prefix)]
+            if len(entry_columns) > 1 or len(tag_columns) > 1:
+                raise ProbeError(
+                    "Ambiguous user-tag join columns were found in "
+                    f"{table_name}; inspect that table explicitly."
+                )
             if entry_columns and tag_columns:
                 matches.append(
                     {
@@ -169,6 +176,16 @@ def discover_user_tag_schema(path: Path) -> dict[str, Any]:
                         "user_tag_column": tag_columns[0],
                     }
                 )
+
+        if not matches:
+            raise ProbeError(
+                "No unambiguous user-tag join table was found in the selected database."
+            )
+        if len(matches) > 1:
+            raise ProbeError(
+                "Multiple possible user-tag join tables were found; inspect them "
+                "explicitly before querying tags."
+            )
 
     return {
         "database": str(path),

@@ -34,7 +34,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "version": "node scripts/sync-versions.mjs && git add manifest.json server.json",
+    "version": "node scripts/sync-versions.mjs && git add manifest.json server.json plugin/.claude-plugin/plugin.json",
     "sync:versions": "node scripts/sync-versions.mjs",
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",

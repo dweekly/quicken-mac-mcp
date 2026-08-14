@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.1
+
+### Added
+
+- Reworked the bundled Quicken skill into focused, read-only workflows for balances and freshness, cash flow, investments, budgets, tags, and QuickFill rules.
+- Added a schema-only Python probe that refuses ambiguous database selection and dynamically discovers Core Data entity and user-tag join identifiers.
+- Added synthetic fixtures that exercise the MCP spending semantics and every documented skill SQL recipe in CI, while retaining optional read-only live-schema cross-checks.
+
+### Fixed
+
+- Date ranges now treat the user-facing end date as inclusive by using the following midnight as an exclusive upper bound.
+- Spending tools now count distinct transactions, exclude transfers and report-excluded rows, ignore positive income splits, and use the same default checking/credit-card scope as the skill.
+- Database auto-detection now refuses to guess when multiple Quicken bundles exist; users must select one with `QUICKEN_DB_PATH`.
+- Balance guidance now uses dated institution ledger values or the latest FI statement positions instead of transaction-derived investment balances.
+- Version synchronization now includes the Claude plugin manifest.
+
+### Changed
+
+- Updated compatible runtime and development dependencies and applied transitive security fixes.
+
 ## 1.3.0
 
 ### Added

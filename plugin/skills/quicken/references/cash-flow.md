@@ -128,7 +128,7 @@ WHERE s.ZAMOUNT < 0
           >= CAST(strftime('%s', :start_date) AS INTEGER) - 978307200
   AND COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE)
           < CAST(strftime('%s', :end_date, '+1 day') AS INTEGER) - 978307200
-  AND UPPER(a.ZTYPENAME) IN ('CHECKING', 'CREDITCARD', 'CASH')
+  AND UPPER(a.ZTYPENAME) IN ('CHECKING', 'CREDITCARD')
   AND t.ZTARGETACCOUNT IS NULL
   AND t.ZSENDACCOUNT IS NULL
   AND NULLIF(TRIM(s.ZTRANSFER), '') IS NULL
@@ -137,7 +137,7 @@ GROUP BY 1, 2
 ORDER BY spent DESC;
 ```
 
-Prefer explicit account names when the user has identified the spending accounts. Add savings or other account types only when they contain genuine expenses the user wants included.
+The `category` expression intentionally rolls subcategories up to their parent whenever one exists; use `cat.ZNAME` instead when sibling categories must remain separate. Prefer explicit account names when the user has identified the spending accounts. Add cash, savings, or other account types only when they contain genuine expenses the user wants included.
 
 ## Monthly trends
 

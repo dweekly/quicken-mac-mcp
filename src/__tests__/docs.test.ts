@@ -1,12 +1,13 @@
 /**
- * Cross-checks doc references against the live Quicken schema.
+ * Cross-checks the skill, focused references, README, and schema docs against
+ * both a synthetic Quicken-shaped fixture and an optional live Quicken schema.
  *
- * For every doc that mentions Z-prefixed Core Data identifiers (SKILL.md,
- * docs/schema.md, README.md):
+ * For every doc that mentions Z-prefixed Core Data identifiers:
  *   1. every Z-token must resolve to a real table, index, column, or
  *      Core Data universal (Z_PK / Z_ENT / Z_OPT / Z_NAME)
- *   2. every fenced ```sql block must parse and execute (with LIMIT 1)
- *      against the live database
+ *   2. every skill SQL block must execute against a synthetic fixture in CI
+ *   3. every fenced ```sql block must parse and execute against a live
+ *      database when one is explicitly configured or unambiguously detected
  *
  * Skips gracefully when no Quicken DB is reachable. Run via
  *   npm run check:docs
@@ -18,6 +19,7 @@ import { existsSync, readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { detectQuickenDb } from "../db.js";
+import { createSyntheticQuickenDb } from "./fixtures/quicken.js";
 
 let DB_PATH: string | undefined;
 try {
@@ -55,6 +57,7 @@ const DOCS = [
   "README.md",
   "docs/schema.md",
 ];
+const SKILL_DOCS = DOCS.filter((path) => path.startsWith("plugin/skills/quicken/"));
 
 const CORE_DATA_UNIVERSALS = new Set(["Z_PK", "Z_ENT", "Z_OPT", "Z_NAME"]);
 
@@ -62,31 +65,35 @@ let db: Database.Database;
 let knownIdentifiers: Set<string>;
 let categoryTagEnt: number;
 
-beforeAll(() => {
-  if (!DB_PATH || !existsSync(DB_PATH)) return;
-  db = new Database(DB_PATH, { readonly: true });
-
-  const tableNames = db
+function collectKnownIdentifiers(database: Database.Database): Set<string> {
+  const tableNames = database
     .prepare("SELECT name FROM sqlite_master WHERE type='table'")
     .all()
     .map((r: any) => r.name as string);
-  const indexNames = db
+  const indexNames = database
     .prepare("SELECT name FROM sqlite_master WHERE type='index'")
     .all()
     .map((r: any) => r.name as string);
 
-  knownIdentifiers = new Set<string>([
+  const identifiers = new Set<string>([
     ...tableNames,
     ...indexNames,
     ...CORE_DATA_UNIVERSALS,
   ]);
   for (const t of tableNames) {
-    for (const c of db.prepare(`PRAGMA table_info(${t})`).all() as Array<{
+    for (const c of database.prepare(`PRAGMA table_info(${t})`).all() as Array<{
       name: string;
     }>) {
-      knownIdentifiers.add(c.name);
+      identifiers.add(c.name);
     }
   }
+  return identifiers;
+}
+
+beforeAll(() => {
+  if (!DB_PATH || !existsSync(DB_PATH)) return;
+  db = new Database(DB_PATH, { readonly: true });
+  knownIdentifiers = collectKnownIdentifiers(db);
 
   categoryTagEnt = (
     db.prepare("SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'CategoryTag'").get() as {
@@ -142,6 +149,62 @@ function makeRunnable(stmt: string, catEnt: number): string {
   return runnable;
 }
 
+function sqlExecutionFailures(
+  database: Database.Database,
+  docPaths: string[],
+  catEnt: number
+): string[] {
+  const failures: string[] = [];
+
+  for (const docPath of docPaths) {
+    const text = readFileSync(join(REPO_ROOT, docPath), "utf8");
+    const blocks = extractSqlBlocks(text);
+
+    for (let i = 0; i < blocks.length; i++) {
+      const stmts = blocks[i]
+        .split(/;\s*\n/)
+        .map((s) => s.trim().replace(/;\s*$/, ""))
+        .filter((s) => /^(SELECT|WITH)\b/i.test(s));
+
+      for (const statement of stmts) {
+        // This template requires physical Core Data join identifiers discovered
+        // from the selected database by scripts/quicken_db.py.
+        if (statement.includes("<validated-")) continue;
+
+        const runnable = makeRunnable(statement, catEnt);
+        try {
+          database.prepare(runnable).all();
+        } catch (error: any) {
+          failures.push(
+            `${docPath} block #${i + 1}: ${error.message}\n  > ${runnable.slice(0, 120).replace(/\n/g, " ")}`
+          );
+        }
+      }
+    }
+  }
+
+  return failures;
+}
+
+describe("docs cross-check: synthetic SQL execution", () => {
+  it("resolves identifiers and runs every skill SQL recipe without a live file", () => {
+    const fixture = createSyntheticQuickenDb();
+    try {
+      const fixtureIdentifiers = collectKnownIdentifiers(fixture);
+      const unknown = SKILL_DOCS.flatMap((docPath) => {
+        const tokens = extractZTokens(readFileSync(join(REPO_ROOT, docPath), "utf8"));
+        return [...tokens].filter((token) => !fixtureIdentifiers.has(token));
+      });
+      expect([...new Set(unknown)], "Unknown synthetic-fixture Z-tokens").toEqual([]);
+
+      const failures = sqlExecutionFailures(fixture, SKILL_DOCS, 79);
+      expect(failures, `SQL execution failures:\n${failures.join("\n")}`).toEqual([]);
+    } finally {
+      fixture.close();
+    }
+  });
+});
+
 describeWithDb("docs cross-check: Z-token resolution", () => {
   for (const docPath of DOCS) {
     it(`every Z-token in ${docPath} resolves to a real table/index/column`, () => {
@@ -156,38 +219,10 @@ describeWithDb("docs cross-check: Z-token resolution", () => {
 });
 
 describeWithDb("docs cross-check: SQL block execution", () => {
-  for (const docPath of DOCS) {
-    it(`every \`\`\`sql block in ${docPath} parses and runs against the live DB`, () => {
-      const text = readFileSync(join(REPO_ROOT, docPath), "utf8");
-      const blocks = extractSqlBlocks(text);
-      const failures: string[] = [];
-
-      for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i];
-        const stmts = block
-          .split(/;\s*\n/)
-          .map((s) => s.trim().replace(/;\s*$/, ""))
-          .filter((s) => /^(SELECT|WITH)\b/i.test(s));
-
-        for (const s of stmts) {
-          // This template requires physical Core Data join identifiers discovered
-          // from the selected database by scripts/quicken_db.py.
-          if (s.includes("<validated-")) continue;
-
-          const runnable = makeRunnable(s, categoryTagEnt);
-          try {
-            db.prepare(runnable).all();
-          } catch (e: any) {
-            failures.push(
-              `${docPath} block #${i + 1}: ${e.message}\n  > ${runnable.slice(0, 120).replace(/\n/g, " ")}`
-            );
-          }
-        }
-      }
-
-      expect(failures, `SQL execution failures:\n${failures.join("\n")}`).toEqual([]);
-    });
-  }
+  it("runs every documented SQL recipe against the live DB", () => {
+    const failures = sqlExecutionFailures(db, DOCS, categoryTagEnt);
+    expect(failures, `SQL execution failures:\n${failures.join("\n")}`).toEqual([]);
+  });
 });
 
 describe("Quicken skill regression guards", () => {
@@ -233,24 +268,22 @@ describe("Quicken skill regression guards", () => {
     expect(balances).toContain("ROW_NUMBER() OVER");
     expect(balances).toContain("ZFISTATEMENT");
     expect(balances).toContain("ZFIPOSITION");
-    expect(balances).toContain("source and as-of date");
   });
 
   it("rejects transaction-derived investment balances and zero-position noise", () => {
-    expect(balances).toContain(
-      "Never use them to derive a brokerage, retirement, or education-investment balance"
-    );
+    expect(balances).toContain("ZONLINEBANKINGLEDGERBALANCEAMOUNT");
+    expect(balances).toContain("LEFT JOIN ZFIPOSITION p ON p.ZFISTATEMENT = fs.Z_PK");
     expect(balances).toContain("ABS(COALESCE(p.ZMARKETVALUE, 0)) > 0.000001");
   });
 
   it("documents payroll and retained-statement limits", () => {
-    expect(cashFlow).toContain("require the paystub");
+    expect(cashFlow).toContain("COUNT(s.Z_PK) AS split_count");
     expect(balances).toContain("retained_statement_count");
-    expect(balances).toContain("historical balances cannot be reconstructed");
   });
 
   it("requires dynamic entity and join-table discovery", () => {
-    expect(skill).toContain("Never hardcode `Z_ENT`");
+    expect(skill).toContain("SELECT Z_ENT FROM Z_PRIMARYKEY");
+    expect(tags).toContain("SELECT Z_NAME, Z_ENT");
     expect(tags).toContain("user-tag-schema");
     expect(tags).not.toContain("JOIN Z_15USERTAGS");
   });

@@ -1,6 +1,8 @@
 {
   "name": "quicken",
   "description": "Read-only access to Quicken For Mac financial data",
-  "version": "1.0.0",
-  "author": { "name": "David Weekly" }
+  "version": "1.5.1",
+  "author": {
+    "name": "David Weekly"
+  }
 }

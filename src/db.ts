@@ -21,8 +21,9 @@ export const CORE_DATA_EPOCH_OFFSET = 978307200;
 
 /**
  * Auto-detect a Quicken database by scanning ~/Documents for .quicken bundles.
- * Returns the path to the `data` file inside the most recently modified bundle.
- * Throws a helpful error if no bundles are found.
+ * Returns the path to the `data` file when exactly one bundle exists. Refuses
+ * to guess when multiple bundles are present because modification time does not
+ * reliably identify the intended or unlocked document.
  */
 export function detectQuickenDb(): string {
   const documentsDir = join(homedir(), "Documents");
@@ -46,15 +47,14 @@ export function detectQuickenDb(): string {
     );
   }
 
-  // Pick the most recently modified bundle
-  const sorted = quickenBundles
-    .map((name) => {
-      const fullPath = resolve(documentsDir, name);
-      return { name, mtime: statSync(fullPath).mtimeMs };
-    })
-    .sort((a, b) => b.mtime - a.mtime);
+  if (quickenBundles.length > 1) {
+    throw new Error(
+      `Multiple .quicken bundles found in ~/Documents. ` +
+        `Set QUICKEN_DB_PATH to the intended Quicken database path.`
+    );
+  }
 
-  return resolve(documentsDir, sorted[0].name, "data");
+  return resolve(documentsDir, quickenBundles[0], "data");
 }
 
 /**
@@ -221,6 +221,14 @@ export function createDbAccessor(dbPath?: string): () => Database.Database {
 export function isoToCoreData(iso: string): number {
   const unix = Math.floor(new Date(iso).getTime() / 1000);
   return unix - CORE_DATA_EPOCH_OFFSET;
+}
+
+/**
+ * Convert an inclusive user-facing ISO date to the exclusive Core Data upper
+ * bound at the following day's midnight.
+ */
+export function inclusiveEndDateToCoreDataExclusive(iso: string): number {
+  return isoToCoreData(iso) + 86400;
 }
 
 /**

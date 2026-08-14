@@ -139,9 +139,8 @@ export function createServer(getDb: () => Database.Database): McpServer {
         "- After launching Quicken, wait a few seconds for it to decrypt the database, then retry the tool call.",
         "",
         "## Database auto-detection",
-        "- If QUICKEN_DB_PATH is not set, the server auto-detects by picking the most recently modified .quicken bundle in ~/Documents.",
-        "- On first use, confirm with the user which Quicken file they want to use. Call list_accounts and show the user the detected file's accounts so they can verify it's the right one.",
-        "- If the user has multiple Quicken files or wants a specific one, instruct them to set the QUICKEN_DB_PATH environment variable:",
+        "- If QUICKEN_DB_PATH is not set, the server auto-detects only when exactly one .quicken bundle exists in ~/Documents.",
+        "- If the user has multiple Quicken files, the server refuses to guess. Instruct them to set QUICKEN_DB_PATH explicitly:",
         "    claude mcp add quicken -e QUICKEN_DB_PATH=~/Documents/YourFile.quicken/data -- npx -y quicken-mac-mcp",
       ].join("\n"),
     }

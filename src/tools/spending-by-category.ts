@@ -8,7 +8,11 @@
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData, getCategoryTagEntityId } from "../db.js";
+import {
+  isoToCoreData,
+  getCategoryTagEntityId,
+  inclusiveEndDateToCoreDataExclusive,
+} from "../db.js";
 
 interface SpendingByCategoryArgs {
   start_date: string;
@@ -48,23 +52,27 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
     SELECT
       ${categoryExpr} as category,
       SUM(s.ZAMOUNT) as total_amount,
-      COUNT(*) as transaction_count
+      COUNT(DISTINCT t.Z_PK) as transaction_count
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
     LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE ${dateExpr} >= ?
-      AND ${dateExpr} <= ?
+      AND ${dateExpr} < ?
       AND ${accountFilter}
-      AND s.ZAMOUNT IS NOT NULL
+      AND s.ZAMOUNT < 0
+      AND t.ZTARGETACCOUNT IS NULL
+      AND t.ZSENDACCOUNT IS NULL
+      AND NULLIF(TRIM(s.ZTRANSFER), '') IS NULL
+      AND COALESCE(t.ZEXCLUDEFROMREPORTS, 0) = 0
     GROUP BY ${categoryExpr}
     ORDER BY total_amount ASC
   `;
 
   const params = [
     isoToCoreData(args.start_date),
-    isoToCoreData(args.end_date),
+    inclusiveEndDateToCoreDataExclusive(args.end_date),
     ...accountParams,
   ];
 

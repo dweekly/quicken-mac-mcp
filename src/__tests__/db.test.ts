@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { isoToCoreData, coreDataToIso, detectQuickenDb } from "../db.js";
+import {
+  isoToCoreData,
+  coreDataToIso,
+  detectQuickenDb,
+  inclusiveEndDateToCoreDataExclusive,
+} from "../db.js";
 import { readdirSync, statSync } from "fs";
 
 // Mock fs for auto-detection tests
@@ -61,6 +66,14 @@ describe("date round-trips", () => {
   });
 });
 
+describe("inclusiveEndDateToCoreDataExclusive", () => {
+  it("returns midnight after the inclusive calendar date", () => {
+    expect(inclusiveEndDateToCoreDataExclusive("2024-01-31")).toBe(
+      isoToCoreData("2024-02-01")
+    );
+  });
+});
+
 describe("detectQuickenDb", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -71,15 +84,10 @@ describe("detectQuickenDb", () => {
     expect(() => detectQuickenDb()).toThrow("No .quicken bundles found");
   });
 
-  it("picks most recent bundle when multiple are found", () => {
+  it("refuses to guess when multiple bundles are found", () => {
     vi.mocked(readdirSync).mockReturnValue(["Old.quicken", "New.quicken"] as any);
-    vi.mocked(statSync).mockImplementation((p: any) => {
-      const path = String(p);
-      return { mtimeMs: path.includes("New.quicken") ? 2000 : 1000 } as any;
-    });
-    const result = detectQuickenDb();
-    expect(result).toContain("New.quicken");
-    expect(result).toMatch(/\/data$/);
+    expect(() => detectQuickenDb()).toThrow("Multiple .quicken bundles found");
+    expect(() => detectQuickenDb()).toThrow("QUICKEN_DB_PATH");
   });
 
   it("returns path to data file when exactly one bundle is found", () => {

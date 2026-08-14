@@ -18,7 +18,12 @@
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData, coreDataToIso, getCategoryTagEntityId } from "../db.js";
+import {
+  isoToCoreData,
+  coreDataToIso,
+  getCategoryTagEntityId,
+  inclusiveEndDateToCoreDataExclusive,
+} from "../db.js";
 
 interface QueryTransactionsArgs {
   start_date?: string;
@@ -45,8 +50,8 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
     params.push(isoToCoreData(args.start_date));
   }
   if (args.end_date) {
-    conditions.push(`${dateExpr} <= ?`);
-    params.push(isoToCoreData(args.end_date));
+    conditions.push(`${dateExpr} < ?`);
+    params.push(inclusiveEndDateToCoreDataExclusive(args.end_date));
   }
   if (args.account_types?.length) {
     // Case-insensitive account type matching
