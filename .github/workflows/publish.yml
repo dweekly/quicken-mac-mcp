@@ -1,6 +1,8 @@
-name: Publish to npm
+name: Publish release
 
-# Publishes the package to npm whenever a GitHub Release is published.
+# A published GitHub Release is the single release trigger. It publishes the
+# npm package, attaches architecture-specific Claude Desktop bundles, and then
+# updates the MCP Registry. workflow_dispatch remains an npm-only escape hatch.
 #
 # Authentication uses npm Trusted Publishing (OIDC) — no NPM_TOKEN secret
 # required. Configure once at:
@@ -21,13 +23,13 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # required for OIDC -> npm provenance
+  id-token: write # required for OIDC -> npm provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: release   # gate via the GitHub "release" environment so
-                           # only protected refs / approvers can publish
+    # Gate publishing so only protected refs / approvers can release.
+    environment: release
     steps:
       - name: Checkout the released ref
         uses: actions/checkout@v6
@@ -39,8 +41,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: npm ci
@@ -72,3 +74,84 @@ jobs:
 
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
+
+  package-mcpb:
+    if: github.event_name == 'release'
+    needs: publish
+    name: Package MCPB (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+            asset: quicken-mac-mcp-arm64.mcpb
+          - arch: x64
+            runner: macos-15-intel
+            asset: quicken-mac-mcp-x64.mcpb
+    steps:
+      - name: Checkout the released ref
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build desktop bundle
+        run: npm run pack:mcpb -- "${{ matrix.asset }}"
+
+      - name: Verify native addon architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          # The staging directory is removed after packing, so inspect the
+          # native addon embedded in the archive instead.
+          unzip -p "${{ matrix.asset }}" \
+            node_modules/better-sqlite3/build/Release/better_sqlite3.node \
+            > better_sqlite3.node
+          file better_sqlite3.node
+          case "$EXPECTED_ARCH" in
+            arm64) file better_sqlite3.node | grep -q arm64 ;;
+            x64) file better_sqlite3.node | grep -q x86_64 ;;
+          esac
+
+      - name: Upload bundle to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          ASSET: ${{ matrix.asset }}
+        run: gh release upload "$TAG_NAME" "$ASSET" --clobber
+
+  publish-registry:
+    if: github.event_name == 'release'
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout the released ref
+        uses: actions/checkout@v6
+
+      - name: Install pinned MCP Registry publisher
+        env:
+          PUBLISHER_URL: https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz
+          PUBLISHER_SHA256: ab128162b0616090b47cf245afe0a23f3ef08936fdce19074f5ba0a4469281ac
+        run: |
+          curl -fsSL "$PUBLISHER_URL" -o mcp-publisher.tar.gz
+          echo "$PUBLISHER_SHA256  mcp-publisher.tar.gz" | sha256sum --check
+          tar -xzf mcp-publisher.tar.gz mcp-publisher
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish

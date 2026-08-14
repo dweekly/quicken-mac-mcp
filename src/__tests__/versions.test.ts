@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { toolsRegistry } from "../tools/registry.js";
 
 const ROOT = resolve(__dirname, "..", "..");
 
@@ -21,11 +22,15 @@ const pkg = readJson<{ version: string }>("package.json");
 const lock = readJson<{ version: string; packages: { "": { version: string } } }>(
   "package-lock.json"
 );
-const manifest = readJson<{ version: string }>("manifest.json");
+const manifest = readJson<{
+  version: string;
+  tools: Array<{ name: string; description: string }>;
+}>("manifest.json");
 const server = readJson<{ version: string; packages: Array<{ version: string }> }>(
   "server.json"
 );
 const plugin = readJson<{ version: string }>("plugin/.claude-plugin/plugin.json");
+const formula = readFileSync(resolve(ROOT, "Formula/qmac.rb"), "utf8");
 
 describe("version consistency", () => {
   it("package-lock.json matches package.json (top-level + root package)", () => {
@@ -37,6 +42,12 @@ describe("version consistency", () => {
     expect(manifest.version).toBe(pkg.version);
   });
 
+  it("manifest.json tool metadata matches the runtime registry", () => {
+    expect(manifest.tools).toEqual(
+      toolsRegistry.map(({ name, description }) => ({ name, description }))
+    );
+  });
+
   it("server.json top-level and packages[].version both match package.json", () => {
     expect(server.version).toBe(pkg.version);
     for (const p of server.packages) {
@@ -46,5 +57,9 @@ describe("version consistency", () => {
 
   it("Claude plugin metadata version matches package.json", () => {
     expect(plugin.version).toBe(pkg.version);
+  });
+
+  it("Homebrew formula targets the package version", () => {
+    expect(formula).toContain(`quicken-mac-mcp-${pkg.version}.tgz`);
   });
 });
