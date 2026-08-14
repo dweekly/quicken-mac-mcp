@@ -131,6 +131,7 @@ export function createServer(getDb: () => Database.Database): McpServer {
         "- Amounts are signed: negative = expense/debit, positive = income/credit.",
         "- Account types are case-insensitive. Common types: checking, creditcard, savings, mortgage, retirementira, asset, liability, loan.",
         "- spending_by_category and spending_over_time default to checking + creditcard accounts only. Include other types explicitly if the user asks about all spending.",
+        "- Those spending tools include negative splits only, exclude transfers and report-excluded transactions, and preserve uncategorized spending as (Uncategorized). State that scope when reporting results.",
         "- query_transactions returns one row per split entry — a single transaction may produce multiple rows if split across categories.",
         "",
         "## Prerequisites",

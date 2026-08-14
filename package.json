@@ -1,6 +1,6 @@
 {
   "name": "quicken-mac-mcp",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "mcpName": "io.github.dweekly/quicken-mac-mcp",
   "description": "MCP server providing read-only access to Quicken For Mac financial data via Claude",
   "type": "module",
@@ -34,6 +34,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "pretest": "node scripts/report-live-test-status.mjs",
     "version": "node scripts/sync-versions.mjs && git add manifest.json server.json plugin/.claude-plugin/plugin.json",
     "sync:versions": "node scripts/sync-versions.mjs",
     "prepublishOnly": "npm run build",

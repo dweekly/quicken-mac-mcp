@@ -123,7 +123,7 @@ export const toolsRegistry: ToolDef[] = [
   {
     name: "spending_by_category",
     description:
-      "Aggregate spending grouped by category or parent category for a date range. Returns category name, total amount, and transaction count, sorted by amount.",
+      "Aggregate consumer spending (negative splits) by category for an inclusive date range. Excludes transfers and report-excluded transactions, preserves an (Uncategorized) bucket, and defaults to checking + credit-card accounts.",
     parameters: {
       start_date: {
         type: "string",
@@ -164,7 +164,7 @@ export const toolsRegistry: ToolDef[] = [
   {
     name: "spending_over_time",
     description:
-      "Monthly spending totals over a date range, optionally broken down by parent category. Useful for trend analysis.",
+      "Monthly consumer-spending totals (negative splits) for an inclusive date range, optionally by parent category. Excludes transfers and report-excluded transactions, labels uncategorized rows when grouped, and defaults to checking + credit-card accounts.",
     parameters: {
       start_date: {
         type: "string",

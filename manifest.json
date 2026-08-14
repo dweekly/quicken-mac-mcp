@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "quicken-mac-mcp",
   "display_name": "Quicken For Mac",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Read-only access to your Quicken For Mac financial data — Claude Skill plus MCP server",
   "author": {
     "name": "David Weekly",

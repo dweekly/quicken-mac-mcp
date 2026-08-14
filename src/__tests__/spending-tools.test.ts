@@ -4,6 +4,7 @@ import { createSyntheticQuickenDb } from "./fixtures/quicken.js";
 import { queryTransactions } from "../tools/query-transactions.js";
 import { spendingByCategory } from "../tools/spending-by-category.js";
 import { spendingOverTime } from "../tools/spending-over-time.js";
+import { toolsRegistry } from "../tools/registry.js";
 
 describe("spending tool correctness", () => {
   let db: Database.Database;
@@ -34,7 +35,7 @@ describe("spending tool correctness", () => {
     const rows = spendingOverTime(db, {
       start_date: "2024-01-01",
       end_date: "2024-01-31",
-    }) as Array<{ total_amount: number; transaction_count: number }>;
+    }) as Array<{ month: string; total_amount: number; transaction_count: number }>;
 
     expect(rows).toEqual([
       { month: "2024-01", total_amount: -125, transaction_count: 3 },
@@ -53,7 +54,7 @@ describe("spending tool correctness", () => {
 
     expect(rows).toEqual([
       { category: "Food", total_amount: -120, transaction_count: 2 },
-      { category: null, total_amount: -5, transaction_count: 1 },
+      { category: "(Uncategorized)", total_amount: -5, transaction_count: 1 },
     ]);
   });
 
@@ -65,5 +66,28 @@ describe("spending tool correctness", () => {
     }) as Array<{ total_amount: number; transaction_count: number }>;
 
     expect(rows[0]).toMatchObject({ total_amount: -140, transaction_count: 4 });
+  });
+
+  it("preserves uncategorized spending in monthly category breakdowns", () => {
+    const rows = spendingOverTime(db, {
+      start_date: "2024-01-01",
+      end_date: "2024-01-31",
+      group_by_category: true,
+    }) as Array<{ category: string | null }>;
+
+    expect(rows.map((row) => row.category)).toContain("(Uncategorized)");
+    expect(rows.every((row) => row.category !== null)).toBe(true);
+  });
+
+  it("discloses aggregate filtering assumptions in both tool descriptions", () => {
+    for (const name of ["spending_by_category", "spending_over_time"]) {
+      const description = toolsRegistry.find((tool) => tool.name === name)?.description;
+      const normalized = description?.toLowerCase();
+      expect(normalized).toContain("negative splits");
+      expect(normalized).toContain("transfers");
+      expect(normalized).toContain("report-excluded");
+      expect(normalized).toContain("uncategorized");
+      expect(normalized).toContain("checking + credit-card");
+    }
   });
 });

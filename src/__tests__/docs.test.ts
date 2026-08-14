@@ -9,42 +9,21 @@
  *   3. every fenced ```sql block must parse and execute against a live
  *      database when one is explicitly configured or unambiguously detected
  *
- * Skips gracefully when no Quicken DB is reachable. Run via
+ * Live checks skip with an explicit warning when no database is selected and
+ * fail when QUICKEN_DB_PATH was set but is unusable. Run via
  *   npm run check:docs
  * which is a thin wrapper around `vitest run src/__tests__/docs.test.ts`.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Database from "better-sqlite3";
-import { existsSync, readFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { detectQuickenDb } from "../db.js";
 import { createSyntheticQuickenDb } from "./fixtures/quicken.js";
+import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 
-let DB_PATH: string | undefined;
-try {
-  DB_PATH = process.env.QUICKEN_DB_PATH || detectQuickenDb();
-} catch {
-  // Auto-detect failed (no .quicken bundles found) — tests will skip below.
-}
-
-function hasQuickenTables(path: string): boolean {
-  try {
-    const testDb = new Database(path, { readonly: true });
-    const tables = testDb
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'"
-      )
-      .all();
-    testDb.close();
-    return tables.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-const describeWithDb =
-  DB_PATH && existsSync(DB_PATH) && hasQuickenTables(DB_PATH) ? describe : describe.skip;
+const DB_PATH = resolveLiveQuickenDb("docs.test.ts", ["ZTRANSACTION"]);
+const describeWithDb = DB_PATH ? describe : describe.skip;
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DOCS = [
@@ -91,7 +70,7 @@ function collectKnownIdentifiers(database: Database.Database): Set<string> {
 }
 
 beforeAll(() => {
-  if (!DB_PATH || !existsSync(DB_PATH)) return;
+  if (!DB_PATH) return;
   db = new Database(DB_PATH, { readonly: true });
   knownIdentifiers = collectKnownIdentifiers(db);
 
