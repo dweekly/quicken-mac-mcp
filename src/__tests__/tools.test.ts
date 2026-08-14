@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Database from "better-sqlite3";
-import { existsSync } from "fs";
-import { detectQuickenDb } from "../db.js";
+import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 import { listAccounts } from "../tools/list-accounts.js";
 import { listCategories } from "../tools/list-categories.js";
 import { queryTransactions } from "../tools/query-transactions.js";
@@ -11,37 +10,13 @@ import { searchPayees } from "../tools/search-payees.js";
 import { rawQuery } from "../tools/raw-query.js";
 import { listPortfolio } from "../tools/list-portfolio.js";
 
-// Resolve the DB path: env var > auto-detect > skip tests
-let DB_PATH: string | undefined;
-try {
-  DB_PATH = process.env.QUICKEN_DB_PATH || detectQuickenDb();
-} catch {
-  // Auto-detect failed (no .quicken bundles found)
-}
-
-// Verify the DB has the expected Quicken tables (not just Core Data metadata)
-function hasQuickenTables(path: string): boolean {
-  try {
-    const testDb = new Database(path, { readonly: true });
-    const tables = testDb
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='ZTRANSACTION'"
-      )
-      .all();
-    testDb.close();
-    return tables.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-const describeWithDb =
-  DB_PATH && existsSync(DB_PATH) && hasQuickenTables(DB_PATH) ? describe : describe.skip;
+const DB_PATH = resolveLiveQuickenDb("tools.test.ts", ["ZTRANSACTION"]);
+const describeWithDb = DB_PATH ? describe : describe.skip;
 
 let db: Database.Database;
 
 beforeAll(() => {
-  if (DB_PATH && existsSync(DB_PATH)) {
+  if (DB_PATH) {
     db = new Database(DB_PATH, { readonly: true });
   }
 });

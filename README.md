@@ -14,7 +14,7 @@ The database is **always opened read-only** — your Quicken data is never modif
 
 This repo ships two artifacts that share the same schema knowledge ([`docs/schema.md`](docs/schema.md)):
 
-- **Skill** ([`plugin/skills/quicken/SKILL.md`](plugin/skills/quicken/SKILL.md)) — teaches Claude to read the Quicken SQLite database directly with the `sqlite3` CLI. Works in Claude Code and any other Claude surface that loads skills. **No native module install, no MCP server process — just SQL.** This is the recommended path.
+- **Skill** ([`plugin/skills/quicken/SKILL.md`](plugin/skills/quicken/SKILL.md)) — teaches Claude to probe and read the Quicken SQLite database directly with Python 3's standard-library SQLite support. Its focused [`references/`](plugin/skills/quicken/references) cover balances, cash flow, investments, budgets, tags, and QuickFill rules. Works in Claude Code and any other Claude surface that loads skills. **No native module install or MCP server process.** This is the recommended path.
 - **MCP server** — wraps the same SQL recipes as eight prepackaged tools (`list_accounts`, `query_transactions`, `spending_by_category`, …). Use it when you're working in a non-Claude MCP client (Cursor, Cline, mcp-remote bridges) that can't load skills, or when you'd rather call typed tools than have Claude write SQL.
 
 The Claude Code plugin install (`claude plugin install quicken-mac-mcp`) bundles **both**, with the skill leading and the MCP tools available as shortcuts.
@@ -84,7 +84,7 @@ If you have multiple Quicken files, or your `.quicken` bundle isn't in `~/Docume
 }
 ```
 
-By default, the server auto-detects your Quicken database by picking the most recently modified `.quicken` bundle in `~/Documents`.
+By default, the server auto-detects your Quicken database only when exactly one `.quicken` bundle exists in `~/Documents`. If multiple bundles exist, it refuses to guess; set `QUICKEN_DB_PATH` explicitly.
 
 ## MCP tools
 
@@ -95,8 +95,8 @@ These are the eight prepackaged tools the MCP server exposes. The skill covers t
 | `list_accounts` | List all accounts with name, type, and active/closed status. Optional type filter. |
 | `list_categories` | List all category tags with parent hierarchy. Filter by expense/income. |
 | `query_transactions` | Query transactions with filters: date range, account types/names, amount range, payee search, category. Returns one row per split entry, with `note` (transaction-level) and `split_note` (per-split) memos. |
-| `spending_by_category` | Aggregate spending by category or parent category for a date range. |
-| `spending_over_time` | Monthly spending totals, optionally broken down by category. |
+| `spending_by_category` | Aggregate negative consumer-spending splits by category, excluding transfers and report-excluded rows and preserving `(Uncategorized)`. |
+| `spending_over_time` | Monthly negative consumer-spending totals with the same exclusions, optionally broken down by category. |
 | `search_payees` | Search payees by name with transaction counts. |
 | `list_portfolio` | List investment holdings with shares, cost basis, and stored Quicken price quotes. |
 | `raw_query` | Run arbitrary SELECT queries (500-row limit). |
@@ -201,6 +201,10 @@ npm run lint      # eslint
 npm run format    # prettier
 npm run dev       # run server locally
 ```
+
+Set `QUICKEN_DB_PATH` before `npm test` if `~/Documents` holds more than one `.quicken` bundle; otherwise the live-schema suites skip.
+
+Known issues and planned work live in [`ROADMAP.md`](ROADMAP.md) — open bugs, developer-experience gaps, and deferred dependency upgrades (fresh as of 2026-08-14).
 
 ## Docker
 

@@ -1,14 +1,19 @@
 /**
  * spending_by_category tool — Aggregate spending by category.
  *
- * Groups transaction split amounts by category name for a date range.
+ * Groups negative, non-transfer transaction splits by category for a date range.
+ * Report-excluded transactions are omitted and uncategorized rows are retained.
  * Can group by either the subcategory (e.g., "Groceries") or the parent
  * category (e.g., "Food & Dining"). Results are sorted by total amount
  * ascending (largest expenses first, since outflows are negative).
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData, getCategoryTagEntityId } from "../db.js";
+import {
+  isoToCoreData,
+  getCategoryTagEntityId,
+  inclusiveEndDateToCoreDataExclusive,
+} from "../db.js";
 
 interface SpendingByCategoryArgs {
   start_date: string;
@@ -22,10 +27,12 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
   const categoryTagEntityId = getCategoryTagEntityId(db);
   const groupBy = args.group_by || "parent_category";
 
-  // When grouping by parent_category, fall back to the subcategory name
-  // for categories that have no parent (i.e., top-level categories).
+  // When grouping by parent_category, fall back to the subcategory name for
+  // top-level categories. Preserve uncategorized spending in either mode.
   const categoryExpr =
-    groupBy === "parent_category" ? "COALESCE(parent_cat.ZNAME, cat.ZNAME)" : "cat.ZNAME";
+    groupBy === "parent_category"
+      ? "COALESCE(parent_cat.ZNAME, cat.ZNAME, '(Uncategorized)')"
+      : "COALESCE(cat.ZNAME, '(Uncategorized)')";
 
   // Fall back to ZENTEREDDATE when ZPOSTEDDATE is null (e.g., CSV-imported accounts)
   const dateExpr = "COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE)";
@@ -48,23 +55,27 @@ export function spendingByCategory(db: Database.Database, args: SpendingByCatego
     SELECT
       ${categoryExpr} as category,
       SUM(s.ZAMOUNT) as total_amount,
-      COUNT(*) as transaction_count
+      COUNT(DISTINCT t.Z_PK) as transaction_count
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
-    LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
+    JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE ${dateExpr} >= ?
-      AND ${dateExpr} <= ?
+      AND ${dateExpr} < ?
       AND ${accountFilter}
-      AND s.ZAMOUNT IS NOT NULL
+      AND s.ZAMOUNT < 0
+      AND t.ZTARGETACCOUNT IS NULL
+      AND t.ZSENDACCOUNT IS NULL
+      AND NULLIF(TRIM(s.ZTRANSFER), '') IS NULL
+      AND COALESCE(t.ZEXCLUDEFROMREPORTS, 0) = 0
     GROUP BY ${categoryExpr}
     ORDER BY total_amount ASC
   `;
 
   const params = [
     isoToCoreData(args.start_date),
-    isoToCoreData(args.end_date),
+    inclusiveEndDateToCoreDataExclusive(args.end_date),
     ...accountParams,
   ];
 

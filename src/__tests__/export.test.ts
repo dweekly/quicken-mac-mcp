@@ -12,7 +12,8 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { exportDatabase } from "../export.js";
-import { CORE_DATA_EPOCH_OFFSET, detectQuickenDb } from "../db.js";
+import { CORE_DATA_EPOCH_OFFSET } from "../db.js";
+import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 
 const CATEGORY_TAG_ENT = 79;
 
@@ -365,33 +366,14 @@ describe("exportDatabase — investment tables", () => {
 // ============================================================
 // Live-DB integration tests
 // ------------------------------------------------------------
-// Skipped automatically when no Quicken DB is reachable (e.g. CI).
+// Skipped with an explicit warning when no Quicken DB is selected (e.g. CI).
+// A configured but unusable QUICKEN_DB_PATH fails the suite.
 // Run locally with Quicken For Mac open. Assertions are generic
 // invariants — they don't hardcode anything tied to a specific DB.
 // ============================================================
 
-let LIVE_DB_PATH: string | undefined;
-try {
-  LIVE_DB_PATH = process.env.QUICKEN_DB_PATH || detectQuickenDb();
-} catch {
-  // no .quicken bundles
-}
-
-function liveDbReadable(path: string): boolean {
-  try {
-    const probe = new Database(path, { readonly: true });
-    const rows = probe.prepare("SELECT 1 FROM ZACCOUNT LIMIT 1").all();
-    probe.close();
-    return rows.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-const describeWithLiveDb =
-  LIVE_DB_PATH && existsSync(LIVE_DB_PATH) && liveDbReadable(LIVE_DB_PATH)
-    ? describe
-    : describe.skip;
+const LIVE_DB_PATH = resolveLiveQuickenDb("export.test.ts", ["ZACCOUNT"]);
+const describeWithLiveDb = LIVE_DB_PATH ? describe : describe.skip;
 
 describeWithLiveDb("exportDatabase — live Quicken DB", () => {
   it("exports a real DB end-to-end and produces non-trivial counts", () => {

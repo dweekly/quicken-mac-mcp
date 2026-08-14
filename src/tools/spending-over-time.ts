@@ -1,7 +1,8 @@
 /**
  * spending_over_time tool — Monthly spending totals over a date range.
  *
- * Uses SQLite's strftime to bucket transactions by YYYY-MM month.
+ * Uses SQLite's strftime to bucket negative, non-transfer transaction splits
+ * by YYYY-MM month. Report-excluded transactions are omitted.
  * The Core Data timestamp is converted to Unix time inline in the SQL
  * (adding CORE_DATA_EPOCH_OFFSET) so strftime can process it.
  *
@@ -10,7 +11,12 @@
  */
 
 import type Database from "better-sqlite3";
-import { isoToCoreData, CORE_DATA_EPOCH_OFFSET, getCategoryTagEntityId } from "../db.js";
+import {
+  isoToCoreData,
+  CORE_DATA_EPOCH_OFFSET,
+  getCategoryTagEntityId,
+  inclusiveEndDateToCoreDataExclusive,
+} from "../db.js";
 
 interface SpendingOverTimeArgs {
   start_date: string;
@@ -25,10 +31,10 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
 
   // Conditionally add category column to SELECT and GROUP BY
   const categorySelect = args.group_by_category
-    ? ", COALESCE(parent_cat.ZNAME, cat.ZNAME) as category"
+    ? ", COALESCE(parent_cat.ZNAME, cat.ZNAME, '(Uncategorized)') as category"
     : "";
   const categoryGroup = args.group_by_category
-    ? ", COALESCE(parent_cat.ZNAME, cat.ZNAME)"
+    ? ", COALESCE(parent_cat.ZNAME, cat.ZNAME, '(Uncategorized)')"
     : "";
 
   // Fall back to ZENTEREDDATE when ZPOSTEDDATE is null (e.g., CSV-imported accounts)
@@ -52,23 +58,27 @@ export function spendingOverTime(db: Database.Database, args: SpendingOverTimeAr
     SELECT
       strftime('%Y-%m', ${dateExpr} + ${CORE_DATA_EPOCH_OFFSET}, 'unixepoch') as month${categorySelect},
       SUM(s.ZAMOUNT) as total_amount,
-      COUNT(*) as transaction_count
+      COUNT(DISTINCT t.Z_PK) as transaction_count
     FROM ZTRANSACTION t
     JOIN ZACCOUNT a ON t.ZACCOUNT = a.Z_PK
-    LEFT JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
+    JOIN ZCASHFLOWTRANSACTIONENTRY s ON s.ZPARENT = t.Z_PK
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE ${dateExpr} >= ?
-      AND ${dateExpr} <= ?
+      AND ${dateExpr} < ?
       AND ${accountFilter}
-      AND s.ZAMOUNT IS NOT NULL
+      AND s.ZAMOUNT < 0
+      AND t.ZTARGETACCOUNT IS NULL
+      AND t.ZSENDACCOUNT IS NULL
+      AND NULLIF(TRIM(s.ZTRANSFER), '') IS NULL
+      AND COALESCE(t.ZEXCLUDEFROMREPORTS, 0) = 0
     GROUP BY month${categoryGroup}
     ORDER BY month ASC${args.group_by_category ? ", total_amount ASC" : ""}
   `;
 
   const params = [
     isoToCoreData(args.start_date),
-    isoToCoreData(args.end_date),
+    inclusiveEndDateToCoreDataExclusive(args.end_date),
     ...accountParams,
   ];
 

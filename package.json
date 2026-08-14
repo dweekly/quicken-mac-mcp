@@ -1,6 +1,6 @@
 {
   "name": "quicken-mac-mcp",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "mcpName": "io.github.dweekly/quicken-mac-mcp",
   "description": "MCP server providing read-only access to Quicken For Mac financial data via Claude",
   "type": "module",
@@ -34,7 +34,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "version": "node scripts/sync-versions.mjs && git add manifest.json server.json",
+    "pretest": "node scripts/report-live-test-status.mjs",
+    "version": "node scripts/sync-versions.mjs && git add manifest.json server.json plugin/.claude-plugin/plugin.json",
     "sync:versions": "node scripts/sync-versions.mjs",
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
@@ -48,22 +49,22 @@
     "pack:mcpb": "./scripts/pack-mcpb.sh"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^12.10.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "better-sqlite3": "^12.11.1"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
-    "@emnapi/core": "^1.10.0",
-    "@emnapi/runtime": "^1.10.0",
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.19.19",
-    "eslint": "^10.4.1",
-    "prettier": "^3.8.3",
-    "tsx": "^4.22.3",
+    "@types/node": "^22.20.1",
+    "eslint": "^10.8.1",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.0",
-    "vitest": "^4.1.7"
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "tmp": "^0.2.7"

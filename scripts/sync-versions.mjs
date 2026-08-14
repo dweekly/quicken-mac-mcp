@@ -5,8 +5,8 @@
  * the repo. Idempotent — running it twice is a no-op.
  *
  * Wired into the `version` lifecycle hook so `npm version <bump>` and the
- * tests in src/__tests__/versions.test.ts both keep server.json and
- * manifest.json in lockstep with package.json. Without this they drift
+ * tests in src/__tests__/versions.test.ts keep server.json, manifest.json,
+ * and plugin/.claude-plugin/plugin.json in lockstep with package.json. Without this they drift
  * silently across releases (e.g. server.json sat at 1.0.3 across 1.0.3
  * → 1.2.2 before this change).
  */
@@ -56,6 +56,14 @@ if (
   })
 ) {
   changed.push("server.json");
+}
+
+if (
+  updateJson("plugin/.claude-plugin/plugin.json", (plugin) => {
+    plugin.version = VERSION;
+  })
+) {
+  changed.push("plugin/.claude-plugin/plugin.json");
 }
 
 if (changed.length === 0) {

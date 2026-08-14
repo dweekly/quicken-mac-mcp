@@ -1,6 +1,6 @@
 /**
  * Cross-checks that every version-bearing file in the repo matches
- * package.json. Without this, server.json and manifest.json silently drift
+ * package.json. Without this, server.json, manifest.json, and plugin metadata drift
  * across releases — e.g. server.json sat at 1.0.3 from v1.0.3 → v1.2.2.
  *
  * Drift is fixed by `npm run sync:versions` (also wired to the `npm version`
@@ -25,6 +25,7 @@ const manifest = readJson<{ version: string }>("manifest.json");
 const server = readJson<{ version: string; packages: Array<{ version: string }> }>(
   "server.json"
 );
+const plugin = readJson<{ version: string }>("plugin/.claude-plugin/plugin.json");
 
 describe("version consistency", () => {
   it("package-lock.json matches package.json (top-level + root package)", () => {
@@ -41,5 +42,9 @@ describe("version consistency", () => {
     for (const p of server.packages) {
       expect(p.version).toBe(pkg.version);
     }
+  });
+
+  it("Claude plugin metadata version matches package.json", () => {
+    expect(plugin.version).toBe(pkg.version);
   });
 });
