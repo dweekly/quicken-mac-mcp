@@ -47,7 +47,12 @@ claude mcp add quicken -- npx -y quicken-mac-mcp
 
 ### Claude Desktop (MCPB drag-and-drop)
 
-Download `quicken-mac-mcp.mcpb` from the [latest GitHub release](https://github.com/dweekly/quicken-mac-mcp/releases) and drag it into Claude Desktop. It will prompt you for your database path (or auto-detect it).
+Download the bundle for your Mac from the [latest GitHub release](https://github.com/dweekly/quicken-mac-mcp/releases) and drag it into Claude Desktop:
+
+- Apple Silicon: `quicken-mac-mcp-arm64.mcpb`
+- Intel: `quicken-mac-mcp-x64.mcpb`
+
+It will prompt you for your database path (or auto-detect it).
 
 ### Claude Desktop (manual JSON)
 

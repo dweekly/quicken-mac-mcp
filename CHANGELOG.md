@@ -19,6 +19,8 @@
 ### Changed
 
 - Updated compatible runtime and development dependencies and applied transitive security fixes.
+- Release automation now publishes npm with provenance, attaches locked Apple Silicon and Intel Claude Desktop bundles, and updates the MCP Registry through GitHub OIDC.
+- Updated the bundled Homebrew formula for 1.6.0.
 
 ## 1.3.0
 

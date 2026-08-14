@@ -3,21 +3,6 @@
 Known issues and planned work. Items land here when they are real but not
 blocking the release in flight. Fresh as of 2026-08-14.
 
-## Cleanups
-
-- `spending-by-category.ts` and `spending-over-time.ts` still use
-  `LEFT JOIN ZCASHFLOWTRANSACTIONENTRY` even though the `s.ZAMOUNT < 0`
-  predicate makes the join effectively inner. Convert to `JOIN` or add a
-  comment explaining why the outer join is retained.
-
-## Policy
-
-- **Write down the versioning rule.** 1.5.1 was re-cut as 1.6.0 once it became
-  clear it carried two user-visible behavior changes (auto-detect now refuses
-  on multiple bundles; spending tools no longer return income splits). Record
-  in `CONTRIBUTING.md` that behavior changes to tool output or database
-  selection require a minor bump, so the next release does not relitigate it.
-
 ## Deferred dependency work
 
 - Major upgrades for `better-sqlite3`, `@types/better-sqlite3`, `@types/node`,

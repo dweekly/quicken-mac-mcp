@@ -2,17 +2,25 @@
 set -euo pipefail
 
 # Build a clean .mcpb bundle with only production dependencies.
-# Usage: ./scripts/pack-mcpb.sh
+# Usage: ./scripts/pack-mcpb.sh [output-file]
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STAGING="$ROOT/.mcpb-staging"
-OUTPUT="$ROOT/quicken-mac-mcp.mcpb"
+OUTPUT="${1:-$ROOT/quicken-mac-mcp.mcpb}"
+if [[ "$OUTPUT" != /* ]]; then
+  OUTPUT="$ROOT/$OUTPUT"
+fi
+
+cleanup() {
+  rm -rf "$STAGING"
+}
+trap cleanup EXIT
 
 echo "==> Building TypeScript..."
 npm run build --prefix "$ROOT"
 
 echo "==> Preparing staging directory..."
-rm -rf "$STAGING"
+cleanup
 mkdir -p "$STAGING"
 
 # Copy only what the bundle needs
@@ -32,25 +40,28 @@ node -e "
   console.log('==> Manifest version synced to ' + pkg.version);
 "
 
-# Copy package.json but strip scripts to avoid lifecycle hooks during install
+# Copy package metadata but strip development-only fields. Keep a matching
+# production lockfile so release bundles use the exact reviewed dependencies.
 node -e "
+  const fs = require('fs');
   const pkg = require('$ROOT/package.json');
   delete pkg.scripts;
   delete pkg.devDependencies;
-  require('fs').writeFileSync('$STAGING/package.json', JSON.stringify(pkg, null, 2));
+  fs.writeFileSync('$STAGING/package.json', JSON.stringify(pkg, null, 2) + '\n');
+
+  const lock = require('$ROOT/package-lock.json');
+  delete lock.packages[''].devDependencies;
+  fs.writeFileSync('$STAGING/package-lock.json', JSON.stringify(lock, null, 2) + '\n');
 "
 
 echo "==> Installing production dependencies..."
 cd "$STAGING"
-npm install --omit=dev --ignore-scripts
+npm ci --omit=dev --ignore-scripts
 # Rebuild better-sqlite3 native addon (required for macOS)
 npm rebuild better-sqlite3
 
 echo "==> Packing .mcpb..."
-npx @anthropic-ai/mcpb pack "$STAGING" "$OUTPUT"
-
-echo "==> Cleaning up..."
-rm -rf "$STAGING"
+"$ROOT/node_modules/.bin/mcpb" pack "$STAGING" "$OUTPUT"
 
 SIZE=$(du -h "$OUTPUT" | cut -f1)
 echo "==> Done! $OUTPUT ($SIZE)"

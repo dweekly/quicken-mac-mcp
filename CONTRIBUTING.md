@@ -26,6 +26,20 @@ npm run dev       # run server locally via tsx
 3. Run `npm test` and `npm run lint` to make sure everything passes.
 4. Open a pull request with a clear description of what you changed and why.
 
+## Versioning
+
+Follow semantic versioning from the perspective of tool and CLI users:
+
+- Patch: backward-compatible fixes and documentation changes that do not alter
+  database selection or tool-output semantics.
+- Minor: new functionality or user-visible changes to tool output, filtering,
+  defaults, or database selection.
+- Major: incompatible tool, CLI, configuration, or package API changes.
+
+Use `npm version` for a release bump. Its lifecycle hook synchronizes
+`manifest.json`, `server.json`, and the Claude plugin metadata; the test suite
+guards those versions against future drift.
+
 ## Reporting bugs
 
 Open a [GitHub issue](https://github.com/dweekly/quicken-mac-mcp/issues) with:
