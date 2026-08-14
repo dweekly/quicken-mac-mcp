@@ -45,7 +45,16 @@ const describeWithDb =
   DB_PATH && existsSync(DB_PATH) && hasQuickenTables(DB_PATH) ? describe : describe.skip;
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const DOCS = ["plugin/skills/quicken/SKILL.md", "README.md", "docs/schema.md"];
+const DOCS = [
+  "plugin/skills/quicken/SKILL.md",
+  "plugin/skills/quicken/references/balances.md",
+  "plugin/skills/quicken/references/budgets.md",
+  "plugin/skills/quicken/references/cash-flow.md",
+  "plugin/skills/quicken/references/investments.md",
+  "plugin/skills/quicken/references/tags-and-rules.md",
+  "README.md",
+  "docs/schema.md",
+];
 
 const CORE_DATA_UNIVERSALS = new Set(["Z_PK", "Z_ENT", "Z_OPT", "Z_NAME"]);
 
@@ -124,6 +133,12 @@ function makeRunnable(stmt: string, catEnt: number): string {
   runnable = runnable.replace(/<[A-Z_]+>/g, "'placeholder'");
   // Replace SQL bind parameters (?) with literal 0
   runnable = runnable.replace(/(?<![\w$:@])\?/g, "0");
+  // Replace named parameters with representative safe values.
+  runnable = runnable
+    .replace(/:start_date\b/g, "'1900-01-01'")
+    .replace(/:end_date\b/g, "'1900-01-02'")
+    .replace(/:row_limit\b/g, "1")
+    .replace(/:[A-Za-z_][A-Za-z0-9_]*\b/g, "NULL");
   return runnable;
 }
 
@@ -152,9 +167,13 @@ describeWithDb("docs cross-check: SQL block execution", () => {
         const stmts = block
           .split(/;\s*\n/)
           .map((s) => s.trim().replace(/;\s*$/, ""))
-          .filter((s) => /^SELECT/i.test(s));
+          .filter((s) => /^(SELECT|WITH)\b/i.test(s));
 
         for (const s of stmts) {
+          // This template requires physical Core Data join identifiers discovered
+          // from the selected database by scripts/quicken_db.py.
+          if (s.includes("<validated-")) continue;
+
           const runnable = makeRunnable(s, categoryTagEnt);
           try {
             db.prepare(runnable).all();
@@ -169,4 +188,70 @@ describeWithDb("docs cross-check: SQL block execution", () => {
       expect(failures, `SQL execution failures:\n${failures.join("\n")}`).toEqual([]);
     });
   }
+});
+
+describe("Quicken skill regression guards", () => {
+  const skill = readFileSync(join(REPO_ROOT, "plugin/skills/quicken/SKILL.md"), "utf8");
+  const cashFlow = readFileSync(
+    join(REPO_ROOT, "plugin/skills/quicken/references/cash-flow.md"),
+    "utf8"
+  );
+  const balances = readFileSync(
+    join(REPO_ROOT, "plugin/skills/quicken/references/balances.md"),
+    "utf8"
+  );
+  const investments = readFileSync(
+    join(REPO_ROOT, "plugin/skills/quicken/references/investments.md"),
+    "utf8"
+  );
+  const tags = readFileSync(
+    join(REPO_ROOT, "plugin/skills/quicken/references/tags-and-rules.md"),
+    "utf8"
+  );
+
+  it("uses inclusive user-facing end dates via a half-open interval", () => {
+    expect(cashFlow).toContain(":end_date, '+1 day'");
+    expect(cashFlow).not.toMatch(/BETWEEN[\s\S]{0,160}:end_date/);
+  });
+
+  it("distinguishes transfers, transactions, splits, and uncategorized spending", () => {
+    expect(cashFlow).toContain("NULLIF(TRIM(s.ZTRANSFER), '') IS NULL");
+    expect(cashFlow).toContain("COUNT(DISTINCT t.Z_PK) AS transaction_count");
+    expect(cashFlow).toContain("COUNT(*) AS split_count");
+    expect(cashFlow).toContain("'(Uncategorized)'");
+  });
+
+  it("preserves non-zero short positions", () => {
+    expect(investments).toContain("ABS(COALESCE(l.ZLATESTUNITS, 0)) > 0.000000001");
+    expect(investments).not.toContain("ZLATESTUNITS > 0");
+  });
+
+  it("uses dated institution sources for first-class balance extraction", () => {
+    expect(balances).toContain("ZONLINEBANKINGLEDGERBALANCEAMOUNT");
+    expect(balances).toContain("ZONLINEBANKINGLEDGERBALANCEDATE");
+    expect(balances).toContain("ZONLINEBANKINGLASTCONNECTEDTIMESTAMP");
+    expect(balances).toContain("ROW_NUMBER() OVER");
+    expect(balances).toContain("ZFISTATEMENT");
+    expect(balances).toContain("ZFIPOSITION");
+    expect(balances).toContain("source and as-of date");
+  });
+
+  it("rejects transaction-derived investment balances and zero-position noise", () => {
+    expect(balances).toContain(
+      "Never use them to derive a brokerage, retirement, or education-investment balance"
+    );
+    expect(balances).toContain("ABS(COALESCE(p.ZMARKETVALUE, 0)) > 0.000001");
+  });
+
+  it("documents payroll and retained-statement limits", () => {
+    expect(cashFlow).toContain("require the paystub");
+    expect(balances).toContain("retained_statement_count");
+    expect(balances).toContain("historical balances cannot be reconstructed");
+  });
+
+  it("requires dynamic entity and join-table discovery", () => {
+    expect(skill).toContain("Never hardcode `Z_ENT`");
+    expect(tags).toContain("user-tag-schema");
+    expect(tags).not.toContain("JOIN Z_15USERTAGS");
+  });
 });
