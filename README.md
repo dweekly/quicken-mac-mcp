@@ -162,6 +162,9 @@ This project includes a high-speed, zero-dependency, pure Python utility `script
    ```bash
    python3 scripts/export_sovereign_csv.py
    ```
+   The script summarizes what it is about to write and waits for you to confirm
+   before it creates any file. Pass `--yes` to skip that prompt when scripting
+   the export; without it, a non-interactive run stops instead of exporting.
 3. A new directory `quicken_sovereign_export/` will be generated, containing:
    - `accounts.csv`: Beautifully normalized accounts list (checking, credit, brokerage, retirement, etc.).
    - `categories.csv`: Income & expense category path structure.

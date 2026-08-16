@@ -13,6 +13,7 @@ import sys
 import csv
 import json
 import sqlite3
+import argparse
 from datetime import datetime
 
 # Epoch offset: Core Data epoch (2001-01-01) to Unix epoch (1970-01-01)
@@ -539,8 +540,55 @@ COPY accounts FROM 'accounts.csv' DELIMITER ',' CSV HEADER;
     log("\nSuccess! Sovereign export completed.")
     log(f"CSV files, schema.json, and migration guide compiled inside: {output_dir}")
 
+def confirm_export(output_dir, assume_yes):
+    """Warn what the export contains and require an explicit go-ahead."""
+    log("WARNING: This writes your ENTIRE Quicken financial history to plaintext CSV.")
+    log("Included: every account, payee, transaction, note/memo, investment holding,")
+    log("and tax lot. Nothing is encrypted or redacted, so anyone who can read the")
+    log("output directory can read your complete financial records.")
+    log(f"Export destination: {output_dir}")
+
+    if assume_yes:
+        return
+
+    if not sys.stdin.isatty():
+        log("FATAL: Refusing to export without confirmation.")
+        log("Re-run with --yes to confirm the export non-interactively.")
+        sys.exit(1)
+
+    sys.stderr.write("Proceed with the export? [y/N]: ")
+    sys.stderr.flush()
+    try:
+        answer = sys.stdin.readline()
+    except KeyboardInterrupt:
+        answer = ""
+    if not answer.endswith("\n"):
+        sys.stderr.write("\n")
+
+    if answer.strip().lower() not in ("y", "yes"):
+        log("Export cancelled. No files were written.")
+        sys.exit(1)
+
+def parse_args():
+    """Parse the exporter command line."""
+    parser = argparse.ArgumentParser(
+        description="Export an unlocked Quicken For Mac database to normalized CSV files."
+    )
+    parser.add_argument(
+        "output_dir",
+        nargs="?",
+        default=os.path.join(os.getcwd(), "quicken_sovereign_export"),
+        help="Directory to write the export into (default: ./quicken_sovereign_export)."
+    )
+    parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt. Required when stdin is not a terminal."
+    )
+    return parser.parse_args()
+
 if __name__ == "__main__":
-    out_dir = os.path.join(os.getcwd(), "quicken_sovereign_export")
-    if len(sys.argv) > 1:
-        out_dir = sys.argv[1]
+    args = parse_args()
+    out_dir = os.path.abspath(args.output_dir)
+    confirm_export(out_dir, args.yes)
     run_sovereign_export(out_dir)
