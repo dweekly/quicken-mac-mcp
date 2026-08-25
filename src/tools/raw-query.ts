@@ -15,7 +15,7 @@
  */
 
 import type Database from "better-sqlite3";
-import { fork } from "node:child_process";
+import { fork, type ChildProcess } from "node:child_process";
 
 const DEFAULT_QUERY_TIMEOUT_MS = 10_000;
 const MAX_CONCURRENT_QUERIES = 3;
@@ -64,6 +64,7 @@ function runInChildProcess(
 ): Promise<unknown[]> {
   return new Promise((resolve, reject) => {
     const child = fork(runnerPath(), { stdio: "ignore" });
+    _internal.onChildSpawn?.(child);
     let settled = false;
 
     const settle = (fn: () => void) => {
@@ -99,7 +100,9 @@ function runInChildProcess(
 
     child.once("exit", (code, signal) => {
       settle(() =>
-        reject(new Error(`Query process exited unexpectedly (code=${code}, signal=${signal})`))
+        reject(
+          new Error(`Query process exited unexpectedly (code=${code}, signal=${signal})`)
+        )
       );
     });
 
@@ -107,8 +110,18 @@ function runInChildProcess(
   });
 }
 
-/** Exposed for tests only, to verify the concurrency cap deterministically without spawning real child processes. */
-export const _internal = { acquireSlot, MAX_CONCURRENT_QUERIES };
+/** Exposed for tests only — not part of the tool's public surface. */
+export const _internal = {
+  /** Lets a test verify the concurrency cap deterministically, without spawning real child processes. */
+  acquireSlot,
+  MAX_CONCURRENT_QUERIES,
+  /**
+   * Notified with each child process as it is forked, so a test can hold the
+   * handle and assert the timeout path actually reaps it. Left undefined in
+   * production, where nothing should be retaining child process references.
+   */
+  onChildSpawn: undefined as ((child: ChildProcess) => void) | undefined,
+};
 
 export async function rawQuery(
   db: Database.Database,

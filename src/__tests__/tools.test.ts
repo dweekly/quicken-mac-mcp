@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Database from "better-sqlite3";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import type { ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 import { listAccounts } from "../tools/list-accounts.js";
@@ -322,9 +323,9 @@ describeWithDb("raw_query", () => {
   });
 
   it("rejects UPDATE statements", async () => {
-    await expect(rawQuery(db, { sql: "UPDATE ZACCOUNT SET ZNAME = 'x'" })).rejects.toThrow(
-      "Only SELECT queries are allowed"
-    );
+    await expect(
+      rawQuery(db, { sql: "UPDATE ZACCOUNT SET ZNAME = 'x'" })
+    ).rejects.toThrow("Only SELECT queries are allowed");
   });
 
   it("rejects DELETE statements", async () => {
@@ -413,17 +414,97 @@ describe("raw_query child process", () => {
       // 200ms budget allows, regardless of machine speed, so the timeout
       // fires reliably without the test itself needing to wait long.
       await expect(
-        rawQuery(
-          readonlyDb,
-          { sql: "SELECT COUNT(*) FROM t a, t b, t c, t d" },
-          200
-        )
+        rawQuery(readonlyDb, { sql: "SELECT COUNT(*) FROM t a, t b, t c, t d" }, 200)
       ).rejects.toThrow(/timed out/i);
     } finally {
       readonlyDb.close();
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15_000);
+
+  it("kills the child process when a query times out", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-cleanup-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    try {
+      seedDb.exec("CREATE TABLE t (n INTEGER)");
+      const insert = seedDb.prepare("INSERT INTO t (n) VALUES (?)");
+      seedDb.transaction(() => {
+        for (let i = 0; i < 400; i++) insert.run(i);
+      })();
+    } finally {
+      seedDb.close();
+    }
+
+    const spawned: ChildProcess[] = [];
+    _internal.onChildSpawn = (child) => spawned.push(child);
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      await expect(
+        rawQuery(readonlyDb, { sql: "SELECT COUNT(*) FROM t a, t b, t c, t d" }, 200)
+      ).rejects.toThrow(/timed out/i);
+
+      expect(spawned).toHaveLength(1);
+      const child = spawned[0];
+
+      // Rejecting the caller is not the same as reclaiming the process: a
+      // child stuck in a native SQLite call keeps burning CPU until it is
+      // actually signalled, so assert the exit rather than the rejection.
+      const exitSignal = await new Promise<string | null>((resolve) => {
+        if (child.exitCode !== null || child.signalCode !== null) {
+          resolve(child.signalCode);
+          return;
+        }
+        child.once("exit", (_code, signal) => resolve(signal));
+      });
+      expect(exitSignal).toBe("SIGKILL");
+      expect(child.killed).toBe(true);
+    } finally {
+      _internal.onChildSpawn = undefined;
+      readonlyDb.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  it("releases its concurrency slot when a query times out", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-slot-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    try {
+      seedDb.exec("CREATE TABLE t (n INTEGER)");
+      const insert = seedDb.prepare("INSERT INTO t (n) VALUES (?)");
+      seedDb.transaction(() => {
+        for (let i = 0; i < 400; i++) insert.run(i);
+      })();
+    } finally {
+      seedDb.close();
+    }
+
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      // Saturate every slot with queries that all time out. If the timeout
+      // path leaked its slot, the pool would be permanently exhausted and the
+      // following ordinary query would hang forever rather than answer.
+      const runaway = "SELECT COUNT(*) FROM t a, t b, t c, t d";
+      await Promise.all(
+        Array.from({ length: _internal.MAX_CONCURRENT_QUERIES }, () =>
+          expect(rawQuery(readonlyDb, { sql: runaway }, 200)).rejects.toThrow(
+            /timed out/i
+          )
+        )
+      );
+
+      const result = await rawQuery(
+        readonlyDb,
+        { sql: "SELECT COUNT(*) as cnt FROM t" },
+        5_000
+      );
+      expect((result.rows[0] as any).cnt).toBe(400);
+    } finally {
+      readonlyDb.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
 
   it("propagates a real SQL error from the child process", async () => {
     const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-error-"));
