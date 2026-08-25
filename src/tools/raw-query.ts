@@ -19,9 +19,13 @@ export function rawQuery(db: Database.Database, args: { sql: string }) {
     throw new Error("Only SELECT queries are allowed");
   }
 
-  // Block write/DDL keywords even inside subqueries or CTEs
+  // Block write/DDL keywords even inside subqueries or CTEs. The PRAGMA
+  // check also matches SQLite's pragma_*() table-valued functions (e.g.
+  // pragma_database_list(), pragma_table_info()) — a bare \bPRAGMA\b would
+  // miss these since "_" is a word character and prevents the boundary
+  // match, letting pragma-derived metadata leak past the blocklist.
   const blocked =
-    /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|REPLACE|ATTACH|DETACH|PRAGMA)\b/i;
+    /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|REPLACE|ATTACH|DETACH|PRAGMA|PRAGMA_\w*)\b/i;
   if (blocked.test(trimmed)) {
     throw new Error("Query contains disallowed statements");
   }

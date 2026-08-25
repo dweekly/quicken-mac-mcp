@@ -338,6 +338,18 @@ describeWithDb("raw_query", () => {
     ).toThrow("disallowed");
   });
 
+  it("rejects pragma_*() table-valued functions", () => {
+    // A bare \bPRAGMA\b boundary check doesn't match "pragma_database_list"
+    // because "_" is a word character, letting these metadata-disclosing
+    // functions slip past a naive PRAGMA blocklist.
+    expect(() =>
+      rawQuery(db, { sql: "SELECT * FROM pragma_database_list()" })
+    ).toThrow("disallowed");
+    expect(() =>
+      rawQuery(db, { sql: "SELECT * FROM pragma_table_info('ZACCOUNT')" })
+    ).toThrow("disallowed");
+  });
+
   it("limits results to 500 rows when no LIMIT specified", () => {
     const result = rawQuery(db, { sql: "SELECT * FROM ZTRANSACTION" });
     expect(result.row_count).toBeLessThanOrEqual(500);
