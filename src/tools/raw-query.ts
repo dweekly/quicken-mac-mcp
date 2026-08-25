@@ -128,6 +128,89 @@ export const _internal = {
   onChildSpawn: undefined as ((child: ChildProcess) => void) | undefined,
 };
 
+/**
+ * Remove a trailing statement terminator before the query is wrapped.
+ *
+ * A subquery cannot contain ";", so a caller's trailing semicolon has to go.
+ * `/;\s*$/` only reached a semicolon at the very end of the text, so the
+ * common "SELECT ...;  -- note" form still failed with an opaque SQLite
+ * syntax error, which is the case Codex's review called out.
+ *
+ * Finding the real end of the statement means knowing which characters are
+ * code and which are comment or literal text, so this walks the string once,
+ * tracking quoting and comment state. That is deliberately all it does: this
+ * is normalization, not validation. The statement policy above is still the
+ * regex blocklist, and replacing that with a real parser remains open work.
+ */
+function stripTrailingTerminator(sql: string): string {
+  let inSingle = false;
+  let inDouble = false;
+  let inBracket = false;
+  let inBacktick = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  // Last character that is part of the statement itself — comment text does
+  // not count, but literal text does ("SELECT ';'" ends in a quote, not a
+  // terminator).
+  let lastCodeIndex = -1;
+
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    const next = sql[i + 1];
+
+    if (inLineComment) {
+      if (c === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (c === "*" && next === "/") {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inSingle || inDouble || inBacktick) {
+      const quote = inSingle ? "'" : inDouble ? '"' : "`";
+      if (c === quote) {
+        // A doubled quote is an escaped quote, not the end of the literal.
+        if (next === quote) i++;
+        else if (inSingle) inSingle = false;
+        else if (inDouble) inDouble = false;
+        else inBacktick = false;
+      }
+      lastCodeIndex = i;
+      continue;
+    }
+    if (inBracket) {
+      if (c === "]") inBracket = false;
+      lastCodeIndex = i;
+      continue;
+    }
+
+    if (c === "-" && next === "-") {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+    if (c === "'") inSingle = true;
+    else if (c === '"') inDouble = true;
+    else if (c === "`") inBacktick = true;
+    else if (c === "[") inBracket = true;
+
+    if (!/\s/.test(c)) lastCodeIndex = i;
+  }
+
+  if (lastCodeIndex >= 0 && sql[lastCodeIndex] === ";") {
+    return sql.slice(0, lastCodeIndex) + sql.slice(lastCodeIndex + 1);
+  }
+  return sql;
+}
+
 export async function rawQuery(
   db: Database.Database,
   args: { sql: string },
@@ -164,7 +247,7 @@ export async function rawQuery(
   // pattern) only runs to end-of-line, so if `)`, the alias, and `LIMIT`
   // shared that line they'd be swallowed into the comment too, turning a
   // valid query into a syntax error.
-  const inner = trimmed.replace(/;\s*$/, "");
+  const inner = stripTrailingTerminator(trimmed);
   const sql = `SELECT * FROM (${inner}\n) AS raw_query_result LIMIT ${MAX_ROWS}`;
 
   const release = await acquireSlot();

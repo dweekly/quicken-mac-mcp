@@ -631,6 +631,59 @@ describe("raw_query (synthetic db)", () => {
     expect((result.rows[0] as any).cnt).toBe(1);
   });
 
+  // Trailing-terminator normalization. Only the first of these was covered
+  // before: a semicolon followed by a comment reached SQLite unchanged and
+  // failed with an opaque syntax error.
+  const terminatorCases: Array<[string, string]> = [
+    ["a trailing semicolon", "SELECT COUNT(*) as cnt FROM ZACCOUNT;"],
+    ["a trailing line comment", "SELECT COUNT(*) as cnt FROM ZACCOUNT -- note"],
+    [
+      "a semicolon followed by a line comment",
+      "SELECT COUNT(*) as cnt FROM ZACCOUNT; -- done",
+    ],
+    [
+      "a semicolon followed by a block comment",
+      "SELECT COUNT(*) as cnt FROM ZACCOUNT; /* done */",
+    ],
+    [
+      "a semicolon on its own line before a comment",
+      "SELECT COUNT(*) as cnt FROM ZACCOUNT;\n-- trailing",
+    ],
+  ];
+  for (const [label, sql] of terminatorCases) {
+    it(`accepts a query ending in ${label}`, async () => {
+      const result = await rawQuery(syntheticDb, { sql });
+      expect((result.rows[0] as any).cnt).toBe(1);
+    });
+  }
+
+  // The scan has to tell code from literal text: a naive strip would corrupt
+  // these queries rather than merely mis-handle a terminator.
+  const literalCases: Array<[string, string, string]> = [
+    ["a semicolon inside a string literal", "SELECT ';' as s FROM ZACCOUNT", ";"],
+    [
+      "a comment marker inside a string literal",
+      "SELECT 'a -- b' as s FROM ZACCOUNT",
+      "a -- b",
+    ],
+    [
+      "a block comment marker inside a string literal",
+      "SELECT 'a /* b */ c' as s FROM ZACCOUNT;",
+      "a /* b */ c",
+    ],
+    [
+      "an escaped quote before the terminator",
+      "SELECT 'it''s' as s FROM ZACCOUNT;",
+      "it's",
+    ],
+  ];
+  for (const [label, sql, expected] of literalCases) {
+    it(`preserves ${label}`, async () => {
+      const result = await rawQuery(syntheticDb, { sql });
+      expect((result.rows[0] as any).s).toBe(expected);
+    });
+  }
+
   // The response byte cap is covered in the "raw_query child process" suite
   // above, where it belongs now: the check moved into the child process, so
   // the test has to exercise the fork rather than a direct in-process call.
