@@ -7,6 +7,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createRequire } from "node:module";
+import { homedir } from "os";
 import { z } from "zod";
 import Database from "better-sqlite3";
 import { toolsRegistry } from "./tools/registry.js";
@@ -22,16 +23,53 @@ function jsonContent(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-// A path segment that's guaranteed to be followed by another "/" (i.e. an
-// intermediate folder, not the trailing filename) may contain a bounded
-// number of internal spaces — real folder/file names occasionally have one
-// (e.g. "My Finances.quicken") — without that allowance spreading into
-// unrelated prose. The final segment does NOT get this allowance: unlike a
-// mid-segment, there's no following "/" to prove it's still part of the
-// path, so allowing spaces there would swallow trailing words like "and" in
-// "/foo/bar/baz and /qux" into the match.
-const MID_SEGMENT = String.raw`[\p{L}\p{N}_.-]+(?:[ \t][\p{L}\p{N}_.-]+){0,3}`;
-const FINAL_SEGMENT = String.raw`[\p{L}\p{N}_.-]+`;
+// Codex's review made the point that a regex is not a privacy guarantee: two
+// rounds of leaks (single-segment paths, then spaced folder names) came out of
+// treating it as one. So the two values we actually KNOW are sensitive — the
+// configured database path and the user's home directory — are redacted by
+// exact string match first, which no amount of punctuation, spacing, or
+// Unicode in a folder name can defeat. The pattern matching below is a
+// fallback for paths we don't know in advance, not the primary defense.
+function redactKnownPaths(msg: string): string {
+  let out = msg;
+
+  const dbPath = process.env.QUICKEN_DB_PATH?.trim();
+  if (dbPath) {
+    // The bundle directory identifies the file on its own, so redact it as
+    // well as the full "/data" path. Longest first, so the more specific
+    // replacement wins.
+    const bundleDir = dbPath.replace(/\/data\/?$/, "");
+    for (const value of [dbPath, bundleDir].sort((a, b) => b.length - a.length)) {
+      if (value.length > 1) out = out.split(value).join("<path>");
+    }
+  }
+
+  const home = homedir();
+  // Leave "~" rather than "<path>": the tail (e.g. "/Documents/My File.quicken")
+  // is still identifying, and "~/..." is exactly what the rule below matches.
+  if (home.length > 1) out = out.split(home).join("~");
+
+  return out;
+}
+
+// Characters allowed inside a path segment. Real Quicken bundle names carry
+// spaces and punctuation ("My Finances (2026).quicken", "Antonio's Budget"),
+// and a class that stops at the first "(" or "'" leaks the rest of the path
+// as trailing plaintext — the same failure shape as the earlier spaced-name
+// leak, just with different characters.
+const SEG = String.raw`[\p{L}\p{N}_.\-+&'()\[\]{}@#$%!=,^]`;
+// A segment may not END on punctuation: that's what keeps a sentence's final
+// period, or a comma between two listed paths, outside the redaction.
+const SEG_END = String.raw`[\p{L}\p{N}_)\]}]`;
+// Chunk lengths are bounded rather than open-ended. Error text can echo
+// caller-supplied SQL, so the nested quantifiers are kept from degrading into
+// pathological backtracking on a long run of segment characters.
+const MID_SEGMENT = String.raw`${SEG}{1,64}(?:[ \t]${SEG}{1,64}){0,3}`;
+// Only a segment proven to be mid-path (a following "/") may contain spaces.
+// The final segment can hold punctuation but not spaces: with no following
+// "/" to prove the path continues, a space allowance would swallow trailing
+// prose like "and" in "/foo/bar/baz and /qux".
+const FINAL_SEGMENT = String.raw`${SEG}{0,64}${SEG_END}`;
 // Excludes a preceding "/" as well as a preceding word character: without it,
 // the second "/" of a "://" URL scheme separator would itself qualify as a
 // path start (the literal first "/" fails to match on its own, since it's
@@ -42,13 +80,21 @@ const UNQUOTED_PATH = new RegExp(
   "gu"
 );
 
-/** Strip filesystem paths from error messages to avoid leaking personal info. */
+/**
+ * Strip filesystem paths from error messages to avoid leaking personal info.
+ *
+ * Known-sensitive values are removed by exact match; anything else is matched
+ * by pattern. The quoted-path rules assume the quote character does not occur
+ * inside the path itself, so a single-quoted path containing an apostrophe can
+ * still leave a fragment behind — the exact-match pass above is what covers
+ * the real database path in that case.
+ */
 export function sanitizeError(err: any): string {
-  const msg = String(err?.message ?? err);
+  const msg = redactKnownPaths(String(err?.message ?? err));
   return msg
     .replace(/'\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
     .replace(/"\/[^"]+"/g, '"<path>"') // double-quoted paths
-    .replace(UNQUOTED_PATH, "<path>"); // unquoted paths: single- or multi-segment, ~/-relative, spaces/Unicode in folder names
+    .replace(UNQUOTED_PATH, "<path>"); // unquoted paths: single- or multi-segment, ~/-relative, spaces/punctuation/Unicode in names
 }
 
 /**
