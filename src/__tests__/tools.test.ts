@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Database from "better-sqlite3";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 import { listAccounts } from "../tools/list-accounts.js";
 import { listCategories } from "../tools/list-categories.js";
@@ -374,6 +377,48 @@ describeWithDb("raw_query", () => {
 
   it("rejects whitespace-only queries", () => {
     expect(() => rawQuery(db, { sql: "   " })).toThrow();
+  });
+});
+
+// This suite doesn't depend on a live Quicken database — it seeds its own
+// synthetic on-disk SQLite file so these regressions are caught even in
+// environments without a live Quicken bundle (which is exactly how the
+// trailing-comment wrapping bug below first slipped through: the equivalent
+// live-db-gated test in integration.test.ts was silently skipped here).
+describe("raw_query (synthetic db)", () => {
+  let dir: string;
+  let syntheticDb: Database.Database;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-synthetic-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    seedDb.exec("CREATE TABLE ZACCOUNT (Z_PK INTEGER, ZNAME TEXT)");
+    seedDb.prepare("INSERT INTO ZACCOUNT (Z_PK, ZNAME) VALUES (1, 'Checking')").run();
+    seedDb.close();
+    syntheticDb = new Database(dbPath, { readonly: true });
+  });
+
+  afterAll(() => {
+    syntheticDb?.close();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("handles a trailing line comment (regression: comment used to swallow the wrapper's closing LIMIT)", () => {
+    const result = rawQuery(syntheticDb, {
+      sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT -- this is a comment",
+    });
+    expect(result.row_count).toBe(1);
+    expect((result.rows[0] as any).cnt).toBe(1);
+  });
+
+  it("rejects a result set whose serialized size exceeds the response byte cap", () => {
+    // A single wide TEXT column can stay comfortably under the 500-row cap
+    // while still ballooning the serialized response.
+    const bigLiteral = "x".repeat(2_200_000);
+    expect(() =>
+      rawQuery(syntheticDb, { sql: `SELECT '${bigLiteral}' as blob FROM ZACCOUNT` })
+    ).toThrow(/too large/i);
   });
 });
 
