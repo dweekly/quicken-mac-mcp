@@ -22,13 +22,33 @@ function jsonContent(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
 
+// A path segment that's guaranteed to be followed by another "/" (i.e. an
+// intermediate folder, not the trailing filename) may contain a bounded
+// number of internal spaces — real folder/file names occasionally have one
+// (e.g. "My Finances.quicken") — without that allowance spreading into
+// unrelated prose. The final segment does NOT get this allowance: unlike a
+// mid-segment, there's no following "/" to prove it's still part of the
+// path, so allowing spaces there would swallow trailing words like "and" in
+// "/foo/bar/baz and /qux" into the match.
+const MID_SEGMENT = String.raw`[\p{L}\p{N}_.-]+(?:[ \t][\p{L}\p{N}_.-]+){0,3}`;
+const FINAL_SEGMENT = String.raw`[\p{L}\p{N}_.-]+`;
+// Excludes a preceding "/" as well as a preceding word character: without it,
+// the second "/" of a "://" URL scheme separator would itself qualify as a
+// path start (the literal first "/" fails to match on its own, since it's
+// immediately followed by another "/" rather than a segment character),
+// causing a partial, corrupting redaction like "https://x/y" -> "https:/<path>".
+const UNQUOTED_PATH = new RegExp(
+  String.raw`(?<![\p{L}\p{N}_/])~?/(?:${MID_SEGMENT}/)*${FINAL_SEGMENT}`,
+  "gu"
+);
+
 /** Strip filesystem paths from error messages to avoid leaking personal info. */
 export function sanitizeError(err: any): string {
   const msg = String(err?.message ?? err);
   return msg
     .replace(/'\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
     .replace(/"\/[^"]+"/g, '"<path>"') // double-quoted paths
-    .replace(/(?<![\w])~?\/(?:[\w.-]+\/)*[\w.-]+/g, "<path>"); // unquoted paths, incl. single-segment (e.g. ".../data") and ~/-relative ones
+    .replace(UNQUOTED_PATH, "<path>"); // unquoted paths: single- or multi-segment, ~/-relative, spaces/Unicode in folder names
 }
 
 /**

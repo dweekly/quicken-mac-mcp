@@ -57,6 +57,30 @@ describe("sanitizeError", () => {
     );
   });
 
+  it("strips a path containing spaces without leaking the tail", () => {
+    // Real Quicken bundle/folder names can contain spaces (e.g. a document
+    // named "My Finances.quicken"); a segment that isn't allowed to contain
+    // spaces splits at the first one and leaks everything after it.
+    const result = sanitizeError({
+      message: "cannot open /Users/antonio/Documents/My Finances.quicken/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("strips a path with Unicode characters in a folder name", () => {
+    const result = sanitizeError({
+      message: "cannot open /Users/x/Documents/Café Finances.quicken/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("does not corrupt an unrelated URL in the message", () => {
+    // The "//" after the scheme previously caused a partial match starting
+    // at the second slash, leaving a stray "/" behind: "https:/<path>".
+    const result = sanitizeError({ message: "fetch failed for https://example.com/api" });
+    expect(result).toBe("fetch failed for https://example.com/api");
+  });
+
   it("preserves messages without paths", () => {
     expect(sanitizeError({ message: "no such table ZACCOUNT" })).toBe(
       "no such table ZACCOUNT"
