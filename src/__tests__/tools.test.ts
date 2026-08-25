@@ -350,6 +350,17 @@ describeWithDb("raw_query", () => {
     expect(result.row_count).toBeLessThanOrEqual(3);
   });
 
+  it("caps results at 500 rows even when an inner subquery has a larger LIMIT", () => {
+    // A naive "find the LIMIT clause" cap can be fooled by a LIMIT nested in
+    // a subquery: it clamps that inner LIMIT and, seeing a LIMIT was already
+    // present, never adds an outer bound — leaving a join against the
+    // (still large) subquery result unbounded.
+    const result = rawQuery(db, {
+      sql: "SELECT * FROM (SELECT * FROM ZTRANSACTION LIMIT 100000) t1, ZACCOUNT a",
+    });
+    expect(result.row_count).toBeLessThanOrEqual(500);
+  });
+
   it("handles queries with trailing semicolons", () => {
     const result = rawQuery(db, {
       sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT;",
