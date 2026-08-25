@@ -9,12 +9,38 @@
  *   - The database is opened read-only at the connection level as well
  *   - The query runs in a child process with a wall-clock timeout, so an
  *     expensive query can't hang the whole MCP server (see raw-query-runner.ts)
+ *   - At most a few queries run concurrently — each child process can burn
+ *     CPU for up to the full timeout, so unbounded concurrency would let a
+ *     burst of calls spawn unbounded simultaneous child processes
  */
 
 import type Database from "better-sqlite3";
 import { fork } from "node:child_process";
 
 const DEFAULT_QUERY_TIMEOUT_MS = 10_000;
+const MAX_CONCURRENT_QUERIES = 3;
+
+let activeQueries = 0;
+const waitQueue: Array<() => void> = [];
+
+/** Acquire one of MAX_CONCURRENT_QUERIES slots, queuing if none are free. */
+function acquireSlot(): Promise<() => void> {
+  return new Promise((resolve) => {
+    const grant = () => {
+      activeQueries++;
+      resolve(() => {
+        activeQueries--;
+        const next = waitQueue.shift();
+        if (next) next();
+      });
+    };
+    if (activeQueries < MAX_CONCURRENT_QUERIES) {
+      grant();
+    } else {
+      waitQueue.push(grant);
+    }
+  });
+}
 
 // Under `tsx`/dev the running module is the .ts source; under the compiled
 // `dist/` build it's .js. The runner is resolved through Node's own module
@@ -81,6 +107,9 @@ function runInChildProcess(
   });
 }
 
+/** Exposed for tests only, to verify the concurrency cap deterministically without spawning real child processes. */
+export const _internal = { acquireSlot, MAX_CONCURRENT_QUERIES };
+
 export async function rawQuery(
   db: Database.Database,
   args: { sql: string },
@@ -110,6 +139,11 @@ export async function rawQuery(
     sql = sql.replace(/;?\s*$/, " LIMIT 500");
   }
 
-  const rows = await runInChildProcess(db.name, sql, timeoutMs);
-  return { row_count: rows.length, rows };
+  const release = await acquireSlot();
+  try {
+    const rows = await runInChildProcess(db.name, sql, timeoutMs);
+    return { row_count: rows.length, rows };
+  } finally {
+    release();
+  }
 }

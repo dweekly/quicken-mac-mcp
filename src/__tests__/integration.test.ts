@@ -565,32 +565,34 @@ describeWithDb("payee search", () => {
 // ============================================================
 
 describeWithDb("raw_query safety", () => {
-  it("rejects PRAGMA statements", () => {
-    expect(() => rawQuery(db, { sql: "PRAGMA table_info(ZACCOUNT)" })).toThrow();
+  it("rejects PRAGMA statements", async () => {
+    await expect(rawQuery(db, { sql: "PRAGMA table_info(ZACCOUNT)" })).rejects.toThrow();
   });
 
-  it("rejects ATTACH DATABASE", () => {
-    expect(() =>
+  it("rejects ATTACH DATABASE", async () => {
+    await expect(
       rawQuery(db, { sql: "ATTACH DATABASE '/tmp/evil.db' AS evil" })
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
-  it("rejects CREATE TABLE", () => {
-    expect(() => rawQuery(db, { sql: "CREATE TABLE test (id INTEGER)" })).toThrow();
+  it("rejects CREATE TABLE", async () => {
+    await expect(
+      rawQuery(db, { sql: "CREATE TABLE test (id INTEGER)" })
+    ).rejects.toThrow();
   });
 
-  it("rejects ALTER TABLE", () => {
-    expect(() =>
+  it("rejects ALTER TABLE", async () => {
+    await expect(
       rawQuery(db, { sql: "ALTER TABLE ZACCOUNT ADD COLUMN evil TEXT" })
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
-  it("rejects SELECT with write subquery", () => {
-    expect(() =>
+  it("rejects SELECT with write subquery", async () => {
+    await expect(
       rawQuery(db, {
         sql: "SELECT * FROM ZACCOUNT; DELETE FROM ZACCOUNT",
       })
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
   it("caps user-specified LIMIT above 500 to 500", async () => {

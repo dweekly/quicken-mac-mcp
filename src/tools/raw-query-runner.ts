@@ -14,6 +14,8 @@
 
 import Database from "better-sqlite3";
 
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
+
 interface RunnerRequest {
   dbPath: string;
   sql: string;
@@ -31,7 +33,22 @@ process.once("message", (msg: RunnerRequest) => {
     const db = new Database(msg.dbPath, { readonly: true });
     try {
       const rows = db.prepare(msg.sql).all();
-      response = { ok: true, rows };
+      // Checked here, before the IPC send, so an outsized result (a handful
+      // of very large TEXT/BLOB values can stay under the 500-row cap) never
+      // has to be serialized across the IPC channel and back into the
+      // parent's MCP response in the first place.
+      const responseBytes = Buffer.byteLength(JSON.stringify(rows), "utf8");
+      if (responseBytes > MAX_RESPONSE_BYTES) {
+        response = {
+          ok: false,
+          message:
+            `Query result is too large (${(responseBytes / (1024 * 1024)).toFixed(1)} MB, ` +
+            `limit ${MAX_RESPONSE_BYTES / (1024 * 1024)} MB). ` +
+            "Narrow the query with more filters, fewer columns, or a smaller LIMIT.",
+        };
+      } else {
+        response = { ok: true, rows };
+      }
     } finally {
       db.close();
     }

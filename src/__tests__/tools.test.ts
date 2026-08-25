@@ -10,7 +10,7 @@ import { queryTransactions } from "../tools/query-transactions.js";
 import { spendingByCategory } from "../tools/spending-by-category.js";
 import { spendingOverTime } from "../tools/spending-over-time.js";
 import { searchPayees } from "../tools/search-payees.js";
-import { rawQuery } from "../tools/raw-query.js";
+import { rawQuery, _internal } from "../tools/raw-query.js";
 import { listPortfolio } from "../tools/list-portfolio.js";
 
 const DB_PATH = resolveLiveQuickenDb("tools.test.ts", ["ZTRANSACTION"]);
@@ -309,36 +309,36 @@ describeWithDb("raw_query", () => {
     expect((result.rows[0] as any).cnt).toBeGreaterThan(0);
   });
 
-  it("rejects non-SELECT queries", () => {
-    expect(() => rawQuery(db, { sql: "DROP TABLE ZACCOUNT" })).toThrow(
+  it("rejects non-SELECT queries", async () => {
+    await expect(rawQuery(db, { sql: "DROP TABLE ZACCOUNT" })).rejects.toThrow(
       "Only SELECT queries are allowed"
     );
   });
 
-  it("rejects INSERT statements", () => {
-    expect(() =>
+  it("rejects INSERT statements", async () => {
+    await expect(
       rawQuery(db, { sql: "INSERT INTO ZACCOUNT (ZNAME) VALUES ('test')" })
-    ).toThrow("Only SELECT queries are allowed");
+    ).rejects.toThrow("Only SELECT queries are allowed");
   });
 
-  it("rejects UPDATE statements", () => {
-    expect(() => rawQuery(db, { sql: "UPDATE ZACCOUNT SET ZNAME = 'x'" })).toThrow(
+  it("rejects UPDATE statements", async () => {
+    await expect(rawQuery(db, { sql: "UPDATE ZACCOUNT SET ZNAME = 'x'" })).rejects.toThrow(
       "Only SELECT queries are allowed"
     );
   });
 
-  it("rejects DELETE statements", () => {
-    expect(() => rawQuery(db, { sql: "DELETE FROM ZACCOUNT" })).toThrow(
+  it("rejects DELETE statements", async () => {
+    await expect(rawQuery(db, { sql: "DELETE FROM ZACCOUNT" })).rejects.toThrow(
       "Only SELECT queries are allowed"
     );
   });
 
-  it("rejects SELECT with embedded dangerous keywords", () => {
-    expect(() =>
+  it("rejects SELECT with embedded dangerous keywords", async () => {
+    await expect(
       rawQuery(db, {
         sql: "SELECT * FROM ZACCOUNT; DROP TABLE ZACCOUNT",
       })
-    ).toThrow("disallowed");
+    ).rejects.toThrow("disallowed");
   });
 
   it("limits results to 500 rows when no LIMIT specified", async () => {
@@ -360,20 +360,39 @@ describeWithDb("raw_query", () => {
     expect(result.row_count).toBe(1);
   });
 
-  it("rejects empty queries", () => {
-    expect(() => rawQuery(db, { sql: "" })).toThrow();
+  it("rejects empty queries", async () => {
+    await expect(rawQuery(db, { sql: "" })).rejects.toThrow();
   });
 
-  it("rejects whitespace-only queries", () => {
-    expect(() => rawQuery(db, { sql: "   " })).toThrow();
+  it("rejects whitespace-only queries", async () => {
+    await expect(rawQuery(db, { sql: "   " })).rejects.toThrow();
   });
 });
 
 // This suite doesn't depend on a live Quicken database — it seeds its own
-// synthetic on-disk SQLite file so the timeout can be exercised reliably in
-// any environment, and passes a short timeoutMs so the test doesn't have to
-// wait out the real (10s) production timeout.
-describe("raw_query timeout", () => {
+// synthetic on-disk SQLite file so the child-process behavior can be
+// exercised reliably in any environment, and passes a short timeoutMs where
+// relevant so tests don't have to wait out the real (10s) production timeout.
+describe("raw_query child process", () => {
+  it("executes a successful query and returns rows", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-success-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    seedDb.exec("CREATE TABLE t (n INTEGER)");
+    seedDb.prepare("INSERT INTO t (n) VALUES (1), (2), (3)").run();
+    seedDb.close();
+
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      const result = await rawQuery(readonlyDb, { sql: "SELECT COUNT(*) as cnt FROM t" });
+      expect(result.row_count).toBe(1);
+      expect((result.rows[0] as any).cnt).toBe(3);
+    } finally {
+      readonlyDb.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a runaway query instead of hanging", async () => {
     const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-timeout-"));
     const dbPath = join(dir, "synthetic.db");
@@ -405,6 +424,75 @@ describe("raw_query timeout", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15_000);
+
+  it("propagates a real SQL error from the child process", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-error-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    seedDb.exec("CREATE TABLE t (n INTEGER)");
+    seedDb.close();
+
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      await expect(
+        rawQuery(readonlyDb, { sql: "SELECT nonexistent_column FROM t" })
+      ).rejects.toThrow(/no such column/i);
+    } finally {
+      readonlyDb.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a result set whose serialized size exceeds the response byte cap", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-bytecap-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    seedDb.exec("CREATE TABLE t (n INTEGER)");
+    seedDb.prepare("INSERT INTO t (n) VALUES (1)").run();
+    seedDb.close();
+
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      const bigLiteral = "x".repeat(2_200_000);
+      await expect(
+        rawQuery(readonlyDb, { sql: `SELECT '${bigLiteral}' as blob FROM t` })
+      ).rejects.toThrow(/too large/i);
+    } finally {
+      readonlyDb.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("raw_query concurrency limit", () => {
+  it("caps concurrent acquisitions and releases queued callers in order", async () => {
+    const { acquireSlot, MAX_CONCURRENT_QUERIES } = _internal;
+
+    const releases = await Promise.all(
+      Array.from({ length: MAX_CONCURRENT_QUERIES }, () => acquireSlot())
+    );
+
+    // One more slot than the cap allows must queue rather than resolve.
+    let extraResolved = false;
+    const extra = acquireSlot().then((release) => {
+      extraResolved = true;
+      return release;
+    });
+
+    // Give any (incorrect) immediate resolution a turn of the microtask queue.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(extraResolved).toBe(false);
+
+    // Freeing one held slot should let the queued caller proceed.
+    releases[0]();
+    const extraRelease = await extra;
+    expect(extraResolved).toBe(true);
+
+    // Clean up the remaining held slots.
+    extraRelease();
+    releases.slice(1).forEach((release) => release());
+  });
 });
 
 // --- list_portfolio ---
