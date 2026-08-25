@@ -564,49 +564,16 @@ describeWithDb("payee search", () => {
 // Raw query safety
 // ============================================================
 
-describeWithDb("raw_query safety", () => {
-  it("rejects PRAGMA statements", async () => {
-    await expect(rawQuery(db, { sql: "PRAGMA table_info(ZACCOUNT)" })).rejects.toThrow();
-  });
-
-  it("rejects ATTACH DATABASE", async () => {
-    await expect(
-      rawQuery(db, { sql: "ATTACH DATABASE '/tmp/evil.db' AS evil" })
-    ).rejects.toThrow();
-  });
-
-  it("rejects CREATE TABLE", async () => {
-    await expect(
-      rawQuery(db, { sql: "CREATE TABLE test (id INTEGER)" })
-    ).rejects.toThrow();
-  });
-
-  it("rejects ALTER TABLE", async () => {
-    await expect(
-      rawQuery(db, { sql: "ALTER TABLE ZACCOUNT ADD COLUMN evil TEXT" })
-    ).rejects.toThrow();
-  });
-
-  it("rejects SELECT with write subquery", async () => {
-    await expect(
-      rawQuery(db, {
-        sql: "SELECT * FROM ZACCOUNT; DELETE FROM ZACCOUNT",
-      })
-    ).rejects.toThrow();
-  });
-
+// Statement validation is not exercised here: it rejects a query before the
+// database is opened, so it needs no live data and belongs in the synthetic
+// suite in tools.test.ts, where it runs in every environment. What remains
+// are the queries that only mean something against a real Quicken file.
+describeWithDb("raw_query against live data", () => {
   it("caps user-specified LIMIT above 500 to 500", async () => {
     const result = await rawQuery(db, {
       sql: "SELECT * FROM ZTRANSACTION LIMIT 9999",
     });
     expect(result.row_count).toBeLessThanOrEqual(500);
-  });
-
-  it("handles queries with comments", async () => {
-    const result = await rawQuery(db, {
-      sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT -- this is a comment",
-    });
-    expect(result.row_count).toBe(1);
   });
 
   it("handles subqueries in SELECT", async () => {

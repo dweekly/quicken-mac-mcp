@@ -300,6 +300,9 @@ describeWithDb("search_payees", () => {
 
 // --- raw_query ---
 
+// Everything here needs real Quicken data. Validation, row capping and
+// terminator handling do not, and live in the synthetic suite below so they
+// run in every environment — see the note there.
 describeWithDb("raw_query", () => {
   it("executes a SELECT query", async () => {
     const result = await rawQuery(db, {
@@ -308,50 +311,6 @@ describeWithDb("raw_query", () => {
     expect(result.row_count).toBe(1);
     expect(result.rows[0]).toHaveProperty("cnt");
     expect((result.rows[0] as any).cnt).toBeGreaterThan(0);
-  });
-
-  it("rejects non-SELECT queries", async () => {
-    await expect(rawQuery(db, { sql: "DROP TABLE ZACCOUNT" })).rejects.toThrow(
-      "Only SELECT queries are allowed"
-    );
-  });
-
-  it("rejects INSERT statements", async () => {
-    await expect(
-      rawQuery(db, { sql: "INSERT INTO ZACCOUNT (ZNAME) VALUES ('test')" })
-    ).rejects.toThrow("Only SELECT queries are allowed");
-  });
-
-  it("rejects UPDATE statements", async () => {
-    await expect(
-      rawQuery(db, { sql: "UPDATE ZACCOUNT SET ZNAME = 'x'" })
-    ).rejects.toThrow("Only SELECT queries are allowed");
-  });
-
-  it("rejects DELETE statements", async () => {
-    await expect(rawQuery(db, { sql: "DELETE FROM ZACCOUNT" })).rejects.toThrow(
-      "Only SELECT queries are allowed"
-    );
-  });
-
-  it("rejects SELECT with embedded dangerous keywords", async () => {
-    await expect(
-      rawQuery(db, {
-        sql: "SELECT * FROM ZACCOUNT; DROP TABLE ZACCOUNT",
-      })
-    ).rejects.toThrow("disallowed");
-  });
-
-  it("rejects pragma_*() table-valued functions", async () => {
-    // A bare \bPRAGMA\b boundary check doesn't match "pragma_database_list"
-    // because "_" is a word character, letting these metadata-disclosing
-    // functions slip past a naive PRAGMA blocklist.
-    await expect(
-      rawQuery(db, { sql: "SELECT * FROM pragma_database_list()" })
-    ).rejects.toThrow("disallowed");
-    await expect(
-      rawQuery(db, { sql: "SELECT * FROM pragma_table_info('ZACCOUNT')" })
-    ).rejects.toThrow("disallowed");
   });
 
   it("limits results to 500 rows when no LIMIT specified", async () => {
@@ -364,32 +323,6 @@ describeWithDb("raw_query", () => {
       sql: "SELECT * FROM ZTRANSACTION LIMIT 3",
     });
     expect(result.row_count).toBeLessThanOrEqual(3);
-  });
-
-  it("caps results at 500 rows even when an inner subquery has a larger LIMIT", async () => {
-    // A naive "find the LIMIT clause" cap can be fooled by a LIMIT nested in
-    // a subquery: it clamps that inner LIMIT and, seeing a LIMIT was already
-    // present, never adds an outer bound — leaving a join against the
-    // (still large) subquery result unbounded.
-    const result = await rawQuery(db, {
-      sql: "SELECT * FROM (SELECT * FROM ZTRANSACTION LIMIT 100000) t1, ZACCOUNT a",
-    });
-    expect(result.row_count).toBeLessThanOrEqual(500);
-  });
-
-  it("handles queries with trailing semicolons", async () => {
-    const result = await rawQuery(db, {
-      sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT;",
-    });
-    expect(result.row_count).toBe(1);
-  });
-
-  it("rejects empty queries", async () => {
-    await expect(rawQuery(db, { sql: "" })).rejects.toThrow();
-  });
-
-  it("rejects whitespace-only queries", async () => {
-    await expect(rawQuery(db, { sql: "   " })).rejects.toThrow();
   });
 });
 
@@ -601,9 +534,14 @@ describe("raw_query concurrency limit", () => {
 
 // This suite doesn't depend on a live Quicken database — it seeds its own
 // synthetic on-disk SQLite file so these regressions are caught even in
-// environments without a live Quicken bundle (which is exactly how the
-// trailing-comment wrapping bug below first slipped through: the equivalent
-// live-db-gated test in integration.test.ts was silently skipped here).
+// environments without a live Quicken bundle. That gating is not a
+// theoretical problem: the trailing-comment wrapping bug slipped through
+// because its only test was live-gated, and a round of raw_query assertions
+// silently stopped asserting anything for the same reason.
+//
+// Validation rejects a query before the database is touched, and the row cap
+// and terminator handling are properties of the SQL we build, so none of it
+// needs real Quicken data to be tested.
 describe("raw_query (synthetic db)", () => {
   let dir: string;
   let syntheticDb: Database.Database;
@@ -614,6 +552,13 @@ describe("raw_query (synthetic db)", () => {
     const seedDb = new Database(dbPath);
     seedDb.exec("CREATE TABLE ZACCOUNT (Z_PK INTEGER, ZNAME TEXT)");
     seedDb.prepare("INSERT INTO ZACCOUNT (Z_PK, ZNAME) VALUES (1, 'Checking')").run();
+    // More rows than the 500-row cap, so the cap itself can be asserted here
+    // rather than only against a live database.
+    seedDb.exec("CREATE TABLE ZTRANSACTION (Z_PK INTEGER)");
+    const insert = seedDb.prepare("INSERT INTO ZTRANSACTION (Z_PK) VALUES (?)");
+    seedDb.transaction(() => {
+      for (let i = 0; i < 600; i++) insert.run(i);
+    })();
     seedDb.close();
     syntheticDb = new Database(dbPath, { readonly: true });
   });
@@ -621,6 +566,101 @@ describe("raw_query (synthetic db)", () => {
   afterAll(() => {
     syntheticDb?.close();
     if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("executes a SELECT query", async () => {
+    const result = await rawQuery(syntheticDb, {
+      sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT",
+    });
+    expect((result.rows[0] as any).cnt).toBe(1);
+  });
+
+  // Validation rejects before the database is opened, so these need no data.
+  const rejectedOutright: Array<[string, string, RegExp]> = [
+    [
+      "a write statement after a SELECT",
+      "SELECT * FROM ZACCOUNT; DELETE FROM ZACCOUNT",
+      /disallowed/,
+    ],
+    [
+      "a PRAGMA statement",
+      "PRAGMA table_info(ZACCOUNT)",
+      /Only SELECT queries are allowed/,
+    ],
+    [
+      "an ATTACH DATABASE",
+      "ATTACH DATABASE '/tmp/evil.db' AS evil",
+      /Only SELECT queries are allowed/,
+    ],
+    [
+      "a CREATE TABLE",
+      "CREATE TABLE test (id INTEGER)",
+      /Only SELECT queries are allowed/,
+    ],
+    [
+      "an ALTER TABLE",
+      "ALTER TABLE ZACCOUNT ADD COLUMN evil TEXT",
+      /Only SELECT queries are allowed/,
+    ],
+    [
+      "a bare non-SELECT statement",
+      "DROP TABLE ZACCOUNT",
+      /Only SELECT queries are allowed/,
+    ],
+    [
+      "an INSERT",
+      "INSERT INTO ZACCOUNT (ZNAME) VALUES ('test')",
+      /Only SELECT queries are allowed/,
+    ],
+    ["an UPDATE", "UPDATE ZACCOUNT SET ZNAME = 'x'", /Only SELECT queries are allowed/],
+    ["a DELETE", "DELETE FROM ZACCOUNT", /Only SELECT queries are allowed/],
+    [
+      "a dangerous keyword after a SELECT",
+      "SELECT * FROM ZACCOUNT; DROP TABLE ZACCOUNT",
+      /disallowed/,
+    ],
+    ["an empty query", "", /./],
+    ["a whitespace-only query", "   ", /./],
+  ];
+  for (const [label, sql, message] of rejectedOutright) {
+    it(`rejects ${label}`, async () => {
+      await expect(rawQuery(syntheticDb, { sql })).rejects.toThrow(message);
+    });
+  }
+
+  it("rejects pragma_*() table-valued functions", async () => {
+    // A bare \bPRAGMA\b boundary check doesn't match "pragma_database_list"
+    // because "_" is a word character, letting these metadata-disclosing
+    // functions slip past a naive PRAGMA blocklist.
+    await expect(
+      rawQuery(syntheticDb, { sql: "SELECT * FROM pragma_database_list()" })
+    ).rejects.toThrow(/disallowed/);
+    await expect(
+      rawQuery(syntheticDb, { sql: "SELECT * FROM pragma_table_info('ZACCOUNT')" })
+    ).rejects.toThrow(/disallowed/);
+  });
+
+  it("caps results at 500 rows when no LIMIT is given", async () => {
+    const result = await rawQuery(syntheticDb, { sql: "SELECT * FROM ZTRANSACTION" });
+    expect(result.row_count).toBe(500);
+  });
+
+  it("caps results at 500 rows even when an inner subquery has a larger LIMIT", async () => {
+    // A naive "find the LIMIT clause" cap can be fooled by a LIMIT nested in
+    // a subquery: it clamps that inner LIMIT and, seeing a LIMIT was already
+    // present, never adds an outer bound — leaving a join against the
+    // (still large) subquery result unbounded.
+    const result = await rawQuery(syntheticDb, {
+      sql: "SELECT * FROM (SELECT * FROM ZTRANSACTION LIMIT 100000) t1, ZACCOUNT a",
+    });
+    expect(result.row_count).toBe(500);
+  });
+
+  it("respects a user-specified LIMIT below the cap", async () => {
+    const result = await rawQuery(syntheticDb, {
+      sql: "SELECT * FROM ZTRANSACTION LIMIT 3",
+    });
+    expect(result.row_count).toBe(3);
   });
 
   it("handles a trailing line comment (regression: comment used to swallow the wrapper's closing LIMIT)", async () => {
