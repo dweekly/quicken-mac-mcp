@@ -28,7 +28,7 @@ export function sanitizeError(err: any): string {
   return msg
     .replace(/'\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
     .replace(/"\/[^"]+"/g, '"<path>"') // double-quoted paths
-    .replace(/\/(?:[\w.-]+\/)+[\w.-]+/g, "<path>"); // unquoted multi-segment paths
+    .replace(/(?<![\w])~?\/(?:[\w.-]+\/)*[\w.-]+/g, "<path>"); // unquoted paths, incl. single-segment (e.g. ".../data") and ~/-relative ones
 }
 
 /**

@@ -33,6 +33,30 @@ describe("sanitizeError", () => {
     expect(result).toBe("Error at <path> and <path>");
   });
 
+  it("strips unquoted single-segment absolute paths", () => {
+    // e.g. the Quicken bundle's inner database file is literally named "data",
+    // so a bare filename like "/data" is a realistic unquoted fragment that a
+    // multi-segment-only regex would miss.
+    const result = sanitizeError({ message: "cannot read /data" });
+    expect(result).toBe("cannot read <path>");
+  });
+
+  it("strips unquoted ~/-relative paths", () => {
+    const result = sanitizeError({
+      message: "no bundle found in ~/Documents/MyFinances.quicken",
+    });
+    expect(result).toBe("no bundle found in <path>");
+  });
+
+  it("does not mangle non-path slash content like fractions or versions", () => {
+    expect(sanitizeError({ message: "ratio is 3/4 by volume" })).toBe(
+      "ratio is 3/4 by volume"
+    );
+    expect(sanitizeError({ message: "supported on v1.2.3/beta builds" })).toBe(
+      "supported on v1.2.3/beta builds"
+    );
+  });
+
   it("preserves messages without paths", () => {
     expect(sanitizeError({ message: "no such table ZACCOUNT" })).toBe(
       "no such table ZACCOUNT"
