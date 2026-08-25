@@ -5,7 +5,11 @@
  * database. Safety measures:
  *   - Only SELECT statements are allowed (checked via regex)
  *   - Dangerous keywords (INSERT, UPDATE, DELETE, DROP, etc.) are blocked
- *   - Results are capped at 500 rows (LIMIT is injected if missing)
+ *   - Results are capped at 500 rows via an outer wrapper LIMIT
+ *   - The serialized response is capped in size as well, since a handful of
+ *     very large TEXT/BLOB values could stay under 500 rows yet still bloat
+ *     the response. That check lives in the child process, before the rows
+ *     cross the IPC channel, so an outsized result is never serialized twice
  *   - The database is opened read-only at the connection level as well
  *   - The query runs in a child process with a wall-clock timeout, so an
  *     expensive query can't hang the whole MCP server (see raw-query-runner.ts)
@@ -18,6 +22,7 @@ import type Database from "better-sqlite3";
 import { fork, type ChildProcess } from "node:child_process";
 
 const DEFAULT_QUERY_TIMEOUT_MS = 10_000;
+const MAX_ROWS = 500;
 const MAX_CONCURRENT_QUERIES = 3;
 
 let activeQueries = 0;
@@ -142,15 +147,21 @@ export async function rawQuery(
     throw new Error("Query contains disallowed statements");
   }
 
-  // Inject or cap the LIMIT clause (max 500 rows)
-  let sql = trimmed;
-  const limitMatch = sql.match(/\bLIMIT\s+(\d+)/i);
-  if (limitMatch) {
-    const n = Math.min(parseInt(limitMatch[1], 10), 500);
-    sql = sql.replace(/\bLIMIT\s+\d+/i, `LIMIT ${n}`);
-  } else {
-    sql = sql.replace(/;?\s*$/, " LIMIT 500");
-  }
+  // Always run the caller's query as a subquery under a single outer LIMIT.
+  // A regex looking for "the" LIMIT clause in the raw SQL can't tell an outer
+  // LIMIT from one nested in a subquery/CTE — matching the wrong one would
+  // cap an inner result set while leaving the actual output unbounded (e.g.
+  // a join against an inner `... LIMIT 100000` subquery). Wrapping instead
+  // guarantees the final row count is bounded regardless of what LIMIT
+  // clauses, if any, appear inside the caller's query.
+  //
+  // The wrapper's own closing tokens go on their own line: a trailing `--`
+  // line comment in the caller's query (a common, previously-supported
+  // pattern) only runs to end-of-line, so if `)`, the alias, and `LIMIT`
+  // shared that line they'd be swallowed into the comment too, turning a
+  // valid query into a syntax error.
+  const inner = trimmed.replace(/;\s*$/, "");
+  const sql = `SELECT * FROM (${inner}\n) AS raw_query_result LIMIT ${MAX_ROWS}`;
 
   const release = await acquireSlot();
   try {

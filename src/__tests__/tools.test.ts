@@ -354,6 +354,17 @@ describeWithDb("raw_query", () => {
     expect(result.row_count).toBeLessThanOrEqual(3);
   });
 
+  it("caps results at 500 rows even when an inner subquery has a larger LIMIT", async () => {
+    // A naive "find the LIMIT clause" cap can be fooled by a LIMIT nested in
+    // a subquery: it clamps that inner LIMIT and, seeing a LIMIT was already
+    // present, never adds an outer bound — leaving a join against the
+    // (still large) subquery result unbounded.
+    const result = await rawQuery(db, {
+      sql: "SELECT * FROM (SELECT * FROM ZTRANSACTION LIMIT 100000) t1, ZACCOUNT a",
+    });
+    expect(result.row_count).toBeLessThanOrEqual(500);
+  });
+
   it("handles queries with trailing semicolons", async () => {
     const result = await rawQuery(db, {
       sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT;",
@@ -574,6 +585,43 @@ describe("raw_query concurrency limit", () => {
     extraRelease();
     releases.slice(1).forEach((release) => release());
   });
+});
+
+// This suite doesn't depend on a live Quicken database — it seeds its own
+// synthetic on-disk SQLite file so these regressions are caught even in
+// environments without a live Quicken bundle (which is exactly how the
+// trailing-comment wrapping bug below first slipped through: the equivalent
+// live-db-gated test in integration.test.ts was silently skipped here).
+describe("raw_query (synthetic db)", () => {
+  let dir: string;
+  let syntheticDb: Database.Database;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-synthetic-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    seedDb.exec("CREATE TABLE ZACCOUNT (Z_PK INTEGER, ZNAME TEXT)");
+    seedDb.prepare("INSERT INTO ZACCOUNT (Z_PK, ZNAME) VALUES (1, 'Checking')").run();
+    seedDb.close();
+    syntheticDb = new Database(dbPath, { readonly: true });
+  });
+
+  afterAll(() => {
+    syntheticDb?.close();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("handles a trailing line comment (regression: comment used to swallow the wrapper's closing LIMIT)", async () => {
+    const result = await rawQuery(syntheticDb, {
+      sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT -- this is a comment",
+    });
+    expect(result.row_count).toBe(1);
+    expect((result.rows[0] as any).cnt).toBe(1);
+  });
+
+  // The response byte cap is covered in the "raw_query child process" suite
+  // above, where it belongs now: the check moved into the child process, so
+  // the test has to exercise the fork rather than a direct in-process call.
 });
 
 // --- list_portfolio ---
