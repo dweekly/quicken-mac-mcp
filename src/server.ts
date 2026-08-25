@@ -97,9 +97,9 @@ function safeTool<A>(
   getDb: () => Database.Database,
   fn: (db: Database.Database, args: A) => unknown
 ) {
-  return (args: A) => {
+  return async (args: A) => {
     try {
-      return jsonContent(fn(getDb(), args));
+      return jsonContent(await fn(getDb(), args));
     } catch (err: any) {
       return formatToolError(err);
     }

@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Database from "better-sqlite3";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 import { listAccounts } from "../tools/list-accounts.js";
 import { listCategories } from "../tools/list-categories.js";
@@ -297,8 +300,8 @@ describeWithDb("search_payees", () => {
 // --- raw_query ---
 
 describeWithDb("raw_query", () => {
-  it("executes a SELECT query", () => {
-    const result = rawQuery(db, {
+  it("executes a SELECT query", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT",
     });
     expect(result.row_count).toBe(1);
@@ -338,20 +341,20 @@ describeWithDb("raw_query", () => {
     ).toThrow("disallowed");
   });
 
-  it("limits results to 500 rows when no LIMIT specified", () => {
-    const result = rawQuery(db, { sql: "SELECT * FROM ZTRANSACTION" });
+  it("limits results to 500 rows when no LIMIT specified", async () => {
+    const result = await rawQuery(db, { sql: "SELECT * FROM ZTRANSACTION" });
     expect(result.row_count).toBeLessThanOrEqual(500);
   });
 
-  it("respects user-specified LIMIT", () => {
-    const result = rawQuery(db, {
+  it("respects user-specified LIMIT", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT * FROM ZTRANSACTION LIMIT 3",
     });
     expect(result.row_count).toBeLessThanOrEqual(3);
   });
 
-  it("handles queries with trailing semicolons", () => {
-    const result = rawQuery(db, {
+  it("handles queries with trailing semicolons", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT;",
     });
     expect(result.row_count).toBe(1);
@@ -364,6 +367,44 @@ describeWithDb("raw_query", () => {
   it("rejects whitespace-only queries", () => {
     expect(() => rawQuery(db, { sql: "   " })).toThrow();
   });
+});
+
+// This suite doesn't depend on a live Quicken database — it seeds its own
+// synthetic on-disk SQLite file so the timeout can be exercised reliably in
+// any environment, and passes a short timeoutMs so the test doesn't have to
+// wait out the real (10s) production timeout.
+describe("raw_query timeout", () => {
+  it("rejects a runaway query instead of hanging", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "qmac-raw-query-timeout-"));
+    const dbPath = join(dir, "synthetic.db");
+    const seedDb = new Database(dbPath);
+    try {
+      seedDb.exec("CREATE TABLE t (n INTEGER)");
+      const insert = seedDb.prepare("INSERT INTO t (n) VALUES (?)");
+      seedDb.transaction(() => {
+        for (let i = 0; i < 400; i++) insert.run(i);
+      })();
+    } finally {
+      seedDb.close();
+    }
+
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      // 400^4 row combinations before COUNT can aggregate — far more than a
+      // 200ms budget allows, regardless of machine speed, so the timeout
+      // fires reliably without the test itself needing to wait long.
+      await expect(
+        rawQuery(
+          readonlyDb,
+          { sql: "SELECT COUNT(*) FROM t a, t b, t c, t d" },
+          200
+        )
+      ).rejects.toThrow(/timed out/i);
+    } finally {
+      readonlyDb.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15_000);
 });
 
 // --- list_portfolio ---

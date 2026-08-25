@@ -7,11 +7,85 @@
  *   - Dangerous keywords (INSERT, UPDATE, DELETE, DROP, etc.) are blocked
  *   - Results are capped at 500 rows (LIMIT is injected if missing)
  *   - The database is opened read-only at the connection level as well
+ *   - The query runs in a child process with a wall-clock timeout, so an
+ *     expensive query can't hang the whole MCP server (see raw-query-runner.ts)
  */
 
 import type Database from "better-sqlite3";
+import { fork } from "node:child_process";
 
-export function rawQuery(db: Database.Database, args: { sql: string }) {
+const DEFAULT_QUERY_TIMEOUT_MS = 10_000;
+
+// Under `tsx`/dev the running module is the .ts source; under the compiled
+// `dist/` build it's .js. The runner is resolved through Node's own module
+// loader, so it has to be addressed with whichever extension actually
+// exists next to this module at runtime.
+function runnerPath(): URL {
+  const ext = import.meta.url.endsWith(".ts") ? ".ts" : ".js";
+  return new URL(`./raw-query-runner${ext}`, import.meta.url);
+}
+
+interface RunnerResponse {
+  ok: boolean;
+  rows?: unknown[];
+  message?: string;
+}
+
+function runInChildProcess(
+  dbPath: string,
+  sql: string,
+  timeoutMs: number
+): Promise<unknown[]> {
+  return new Promise((resolve, reject) => {
+    const child = fork(runnerPath(), { stdio: "ignore" });
+    let settled = false;
+
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
+
+    const timer = setTimeout(() => {
+      settle(() =>
+        reject(
+          new Error(
+            `Query timed out after ${timeoutMs / 1000}s. ` +
+              "Try narrowing the query with more filters or a smaller LIMIT."
+          )
+        )
+      );
+      // SIGKILL is the only thing guaranteed to reclaim a process stuck in a
+      // long native SQLite call — a graceful signal or Worker#terminate()
+      // can't preempt code that never yields back to the JS event loop.
+      child.kill("SIGKILL");
+    }, timeoutMs);
+
+    child.once("message", (msg: RunnerResponse) => {
+      settle(() => (msg.ok ? resolve(msg.rows ?? []) : reject(new Error(msg.message))));
+      child.kill();
+    });
+
+    child.once("error", (err) => {
+      settle(() => reject(err));
+    });
+
+    child.once("exit", (code, signal) => {
+      settle(() =>
+        reject(new Error(`Query process exited unexpectedly (code=${code}, signal=${signal})`))
+      );
+    });
+
+    child.send({ dbPath, sql });
+  });
+}
+
+export async function rawQuery(
+  db: Database.Database,
+  args: { sql: string },
+  timeoutMs: number = DEFAULT_QUERY_TIMEOUT_MS
+) {
   const trimmed = args.sql.trim();
 
   // Must start with SELECT
@@ -36,6 +110,6 @@ export function rawQuery(db: Database.Database, args: { sql: string }) {
     sql = sql.replace(/;?\s*$/, " LIMIT 500");
   }
 
-  const rows = db.prepare(sql).all();
+  const rows = await runInChildProcess(db.name, sql, timeoutMs);
   return { row_count: rows.length, rows };
 }

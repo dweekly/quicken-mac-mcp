@@ -470,7 +470,7 @@ async function run() {
     const getDb = createDbAccessor(dbPath);
     try {
       const db = getDb();
-      const result = matchedTool.handler(db, validatedArgs);
+      const result = await matchedTool.handler(db, validatedArgs);
       if (json) {
         console.log(JSON.stringify(result, null, 2));
       } else {
