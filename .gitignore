@@ -10,3 +10,7 @@ __pycache__/
 .mcpb-staging/
 quicken_sovereign_export/
 .playwright-mcp/
+
+# Credentials written by the mcp-publisher CLI into the working directory.
+.mcpregistry_*
+docs-fullpage.png
