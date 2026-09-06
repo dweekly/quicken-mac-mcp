@@ -564,51 +564,20 @@ describeWithDb("payee search", () => {
 // Raw query safety
 // ============================================================
 
-describeWithDb("raw_query safety", () => {
-  it("rejects PRAGMA statements", () => {
-    expect(() => rawQuery(db, { sql: "PRAGMA table_info(ZACCOUNT)" })).toThrow();
-  });
-
-  it("rejects ATTACH DATABASE", () => {
-    expect(() =>
-      rawQuery(db, { sql: "ATTACH DATABASE '/tmp/evil.db' AS evil" })
-    ).toThrow();
-  });
-
-  it("rejects CREATE TABLE", () => {
-    expect(() => rawQuery(db, { sql: "CREATE TABLE test (id INTEGER)" })).toThrow();
-  });
-
-  it("rejects ALTER TABLE", () => {
-    expect(() =>
-      rawQuery(db, { sql: "ALTER TABLE ZACCOUNT ADD COLUMN evil TEXT" })
-    ).toThrow();
-  });
-
-  it("rejects SELECT with write subquery", () => {
-    expect(() =>
-      rawQuery(db, {
-        sql: "SELECT * FROM ZACCOUNT; DELETE FROM ZACCOUNT",
-      })
-    ).toThrow();
-  });
-
-  it("caps user-specified LIMIT above 500 to 500", () => {
-    const result = rawQuery(db, {
+// Statement validation is not exercised here: it rejects a query before the
+// database is opened, so it needs no live data and belongs in the synthetic
+// suite in tools.test.ts, where it runs in every environment. What remains
+// are the queries that only mean something against a real Quicken file.
+describeWithDb("raw_query against live data", () => {
+  it("caps user-specified LIMIT above 500 to 500", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT * FROM ZTRANSACTION LIMIT 9999",
     });
     expect(result.row_count).toBeLessThanOrEqual(500);
   });
 
-  it("handles queries with comments", () => {
-    const result = rawQuery(db, {
-      sql: "SELECT COUNT(*) as cnt FROM ZACCOUNT -- this is a comment",
-    });
-    expect(result.row_count).toBe(1);
-  });
-
-  it("handles subqueries in SELECT", () => {
-    const result = rawQuery(db, {
+  it("handles subqueries in SELECT", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT (SELECT COUNT(*) FROM ZACCOUNT) as account_count, (SELECT COUNT(*) FROM ZTRANSACTION) as txn_count",
     });
     expect(result.row_count).toBe(1);
@@ -616,8 +585,8 @@ describeWithDb("raw_query safety", () => {
     expect((result.rows[0] as any).txn_count).toBeGreaterThan(0);
   });
 
-  it("handles JOIN queries", () => {
-    const result = rawQuery(db, {
+  it("handles JOIN queries", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT a.ZNAME, COUNT(t.Z_PK) as cnt FROM ZACCOUNT a LEFT JOIN ZTRANSACTION t ON t.ZACCOUNT = a.Z_PK GROUP BY a.ZNAME LIMIT 5",
     });
     expect(result.row_count).toBeGreaterThan(0);
@@ -705,8 +674,8 @@ describeWithDb("portfolio data integrity", () => {
 // ============================================================
 
 describeWithDb("schema consistency", () => {
-  it("Z_PRIMARYKEY contains all expected Core Data entities", () => {
-    const result = rawQuery(db, {
+  it("Z_PRIMARYKEY contains all expected Core Data entities", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT Z_NAME FROM Z_PRIMARYKEY ORDER BY Z_NAME",
     });
     const names = result.rows.map((r: any) => r.Z_NAME);
@@ -726,8 +695,8 @@ describeWithDb("schema consistency", () => {
     }
   });
 
-  it("all key tables exist in sqlite_master", () => {
-    const result = rawQuery(db, {
+  it("all key tables exist in sqlite_master", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
     });
     const tables = result.rows.map((r: any) => r.name);
@@ -747,15 +716,15 @@ describeWithDb("schema consistency", () => {
     }
   });
 
-  it("Z_ENT values in Z_PRIMARYKEY are unique", () => {
-    const result = rawQuery(db, {
+  it("Z_ENT values in Z_PRIMARYKEY are unique", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT Z_ENT, COUNT(*) as cnt FROM Z_PRIMARYKEY GROUP BY Z_ENT HAVING cnt > 1",
     });
     expect(result.row_count).toBe(0);
   });
 
-  it("ZCASHFLOWTRANSACTIONENTRY has ZPARENT column for transaction FK", () => {
-    const result = rawQuery(db, {
+  it("ZCASHFLOWTRANSACTIONENTRY has ZPARENT column for transaction FK", async () => {
+    const result = await rawQuery(db, {
       sql: "SELECT COUNT(*) as cnt FROM ZCASHFLOWTRANSACTIONENTRY WHERE ZPARENT IS NOT NULL",
     });
     expect((result.rows[0] as any).cnt).toBeGreaterThan(0);

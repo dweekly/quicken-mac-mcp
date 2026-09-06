@@ -8,6 +8,7 @@ import { spendingOverTime } from "./spending-over-time.js";
 import { searchPayees } from "./search-payees.js";
 import { listPortfolio } from "./list-portfolio.js";
 import { rawQuery } from "./raw-query.js";
+import { enforceResultLimits } from "./limits.js";
 
 /** Parameter type representation for help display and dynamic CLI parsing. */
 export type ParamType = "string" | "number" | "boolean" | "enum" | "array";
@@ -27,7 +28,7 @@ export interface ToolDef {
   handler: (db: Database.Database, args: any) => any;
 }
 
-export const toolsRegistry: ToolDef[] = [
+const toolDefinitions: ToolDef[] = [
   {
     name: "list_accounts",
     description:
@@ -249,3 +250,19 @@ export const toolsRegistry: ToolDef[] = [
     handler: rawQuery,
   },
 ];
+
+/**
+ * Every tool is dispatched through the shared result bounds, so a tool cannot
+ * be added later that returns an unbounded result by omission. Sync handlers
+ * stay sync — only raw_query returns a promise, and wrapping it in an async
+ * function would change the others' call signature for no reason.
+ */
+export const toolsRegistry: ToolDef[] = toolDefinitions.map((tool) => ({
+  ...tool,
+  handler: (db, args) => {
+    const result = tool.handler(db, args);
+    return result instanceof Promise
+      ? result.then((rows) => enforceResultLimits(tool.name, rows))
+      : enforceResultLimits(tool.name, result);
+  },
+}));
