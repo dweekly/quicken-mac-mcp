@@ -1,7 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { homedir } from "os";
 import { sanitizeError, formatToolError } from "../server.js";
 
 describe("sanitizeError", () => {
+  const originalDbPath = process.env.QUICKEN_DB_PATH;
+  afterEach(() => {
+    if (originalDbPath === undefined) delete process.env.QUICKEN_DB_PATH;
+    else process.env.QUICKEN_DB_PATH = originalDbPath;
+  });
+
   it("strips single-quoted paths (native module errors)", () => {
     const msg =
       "The module '/Users/x/.npm/_npx/abc/node_modules/better-sqlite3/build/Release/better_sqlite3.node' " +
@@ -33,6 +40,54 @@ describe("sanitizeError", () => {
     expect(result).toBe("Error at <path> and <path>");
   });
 
+  it("strips unquoted single-segment absolute paths", () => {
+    // e.g. the Quicken bundle's inner database file is literally named "data",
+    // so a bare filename like "/data" is a realistic unquoted fragment that a
+    // multi-segment-only regex would miss.
+    const result = sanitizeError({ message: "cannot read /data" });
+    expect(result).toBe("cannot read <path>");
+  });
+
+  it("strips unquoted ~/-relative paths", () => {
+    const result = sanitizeError({
+      message: "no bundle found in ~/Documents/MyFinances.quicken",
+    });
+    expect(result).toBe("no bundle found in <path>");
+  });
+
+  it("does not mangle non-path slash content like fractions or versions", () => {
+    expect(sanitizeError({ message: "ratio is 3/4 by volume" })).toBe(
+      "ratio is 3/4 by volume"
+    );
+    expect(sanitizeError({ message: "supported on v1.2.3/beta builds" })).toBe(
+      "supported on v1.2.3/beta builds"
+    );
+  });
+
+  it("strips a path containing spaces without leaking the tail", () => {
+    // Real Quicken bundle/folder names can contain spaces (e.g. a document
+    // named "My Finances.quicken"); a segment that isn't allowed to contain
+    // spaces splits at the first one and leaks everything after it.
+    const result = sanitizeError({
+      message: "cannot open /Users/antonio/Documents/My Finances.quicken/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("strips a path with Unicode characters in a folder name", () => {
+    const result = sanitizeError({
+      message: "cannot open /Users/x/Documents/Café Finances.quicken/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("does not corrupt an unrelated URL in the message", () => {
+    // The "//" after the scheme previously caused a partial match starting
+    // at the second slash, leaving a stray "/" behind: "https:/<path>".
+    const result = sanitizeError({ message: "fetch failed for https://example.com/api" });
+    expect(result).toBe("fetch failed for https://example.com/api");
+  });
+
   it("preserves messages without paths", () => {
     expect(sanitizeError({ message: "no such table ZACCOUNT" })).toBe(
       "no such table ZACCOUNT"
@@ -47,6 +102,62 @@ describe("sanitizeError", () => {
       "The module '/some/path/file.node' was compiled against a different Node.js version";
     const result = sanitizeError({ message: msg });
     expect(result).toContain("was compiled against a different Node.js version");
+  });
+
+  it("strips a path with punctuation in a folder name", () => {
+    const result = sanitizeError({
+      message: "cannot open /Users/x/Documents/My Finances (2026).quicken/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("strips a path with an apostrophe in a folder name", () => {
+    const result = sanitizeError({
+      message: "cannot open /Users/x/Documents/Antonio's Finances/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("strips a path with an ampersand in a folder name", () => {
+    const result = sanitizeError({
+      message: "cannot open /Users/x/Documents/Q&A Data/data",
+    });
+    expect(result).toBe("cannot open <path>");
+  });
+
+  it("does not eat the sentence period after a path", () => {
+    const result = sanitizeError({ message: "no such file /Users/x/data." });
+    expect(result).toBe("no such file <path>.");
+  });
+
+  it("keeps two comma-separated paths separate", () => {
+    const result = sanitizeError({ message: "tried /Users/x/a, /Users/x/b" });
+    expect(result).toBe("tried <path>, <path>");
+  });
+
+  it("redacts the configured QUICKEN_DB_PATH by exact match, whatever it contains", () => {
+    // The regex allows a bounded number of spaces per segment; an exact-match
+    // pass must not depend on that. This name would defeat the pattern alone.
+    process.env.QUICKEN_DB_PATH =
+      "/Volumes/Backup Disk/a b c d e f g/My File.quicken/data";
+    const result = sanitizeError({
+      message:
+        "unable to open database file /Volumes/Backup Disk/a b c d e f g/My File.quicken/data",
+    });
+    expect(result).toBe("unable to open database file <path>");
+  });
+
+  it("redacts the bundle directory of the configured path, not just the /data file", () => {
+    process.env.QUICKEN_DB_PATH = "/Volumes/Backup Disk/My File.quicken/data";
+    const result = sanitizeError({
+      message: "bundle /Volumes/Backup Disk/My File.quicken is not readable",
+    });
+    expect(result).toBe("bundle <path> is not readable");
+  });
+
+  it("redacts the home directory even when the tail defeats the pattern", () => {
+    const msg = `cannot stat ${homedir()}/Documents/a b c d e f g/data`;
+    expect(sanitizeError({ message: msg })).not.toContain(homedir());
   });
 
   it("handles non-Error inputs", () => {
