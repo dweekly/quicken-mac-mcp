@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -10,6 +10,62 @@ const ROOT = resolve(__dirname, "..", "..");
 const SCRIPT = join(ROOT, "plugin/skills/quicken/scripts/quicken_db.py");
 const VENV_PYTHON = join(ROOT, ".venv/bin/python");
 const PYTHON = existsSync(VENV_PYTHON) ? VENV_PYTHON : "python3";
+
+describe("quicken_db.py candidates", () => {
+  let home: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "quicken-home-"));
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  function candidates() {
+    return spawnSync(PYTHON, [SCRIPT, "candidates"], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: home, QUICKEN_DB_PATH: "" },
+    });
+  }
+
+  function bundle(relativeDir: string, name: string) {
+    const dir = join(home, relativeDir, `${name}.quicken`);
+    mkdirSync(dir, { recursive: true });
+    createSyntheticQuickenDb(join(dir, "data")).close();
+  }
+
+  it("finds a bundle under ~/Library/Application Support/Quicken/Documents", () => {
+    bundle("Library/Application Support/Quicken/Documents", "Qdata");
+    const result = candidates();
+    expect(result.status, result.stderr).toBe(0);
+    const payload = JSON.parse(result.stdout);
+    expect(payload).toHaveLength(1);
+    expect(payload[0].path).toContain(
+      "Application Support/Quicken/Documents/Qdata.quicken/data"
+    );
+  });
+
+  it("finds a beta-channel folder and the App Store container alongside ~/Documents", () => {
+    bundle("Documents", "Old");
+    bundle("Library/Application Support/Quicken Beta/Documents", "Beta");
+    bundle(
+      "Library/Containers/com.quicken.QuickenAppStore/Data/Library/Application Support/Quicken/Documents",
+      "Store"
+    );
+    const payload = JSON.parse(candidates().stdout);
+    expect(payload.map((c: any) => c.path.split("/").at(-2)).sort()).toEqual([
+      "Beta.quicken",
+      "Old.quicken",
+      "Store.quicken",
+    ]);
+  });
+
+  it("ignores folders that merely start with 'Quicken'", () => {
+    bundle("Library/Application Support/Quickenfoo/Documents", "Foo");
+    expect(JSON.parse(candidates().stdout)).toEqual([]);
+  });
+});
 
 describe("quicken_db.py user-tag-schema", () => {
   let directory: string;

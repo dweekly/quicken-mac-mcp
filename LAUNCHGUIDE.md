@@ -4,10 +4,10 @@
 Read-only MCP server for querying Quicken For Mac financial data with Claude
 
 ## Description
-An MCP server that gives Claude read-only access to your Quicken For Mac financial data. It reads the Core Data SQLite database that Quicken stores in your Documents folder and exposes 8 query tools for accounts, transactions, spending analysis, and investment portfolios. Quicken For Mac must be running (it encrypts the database when closed). Your data is never modified — the database is always opened read-only.
+An MCP server that gives Claude read-only access to your Quicken For Mac financial data. It reads the Core Data SQLite database inside your `.quicken` bundle (found automatically in `~/Documents`, `~/Library/Application Support/Quicken*/Documents`, or the App Store container) and exposes 8 query tools for accounts, transactions, spending analysis, and investment portfolios. Quicken For Mac should be running (some installs encrypt the database when closed). Your data is never modified — the database is always opened read-only.
 
 ## Setup Requirements
-- `QUICKEN_DB_PATH` (optional): Path to your `.quicken/data` file. Default: auto-detects the most recently modified `.quicken` bundle in `~/Documents`.
+- `QUICKEN_DB_PATH` (optional): Path to your `.quicken/data` file. Default: auto-detects when exactly one `.quicken` bundle exists across the known Quicken locations.
 
 ## Category
 Finance

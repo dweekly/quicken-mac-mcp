@@ -73,7 +73,7 @@ export function formatToolError(err: any) {
   } else if (msg.includes("no such table") || msg.includes("encrypted")) {
     if (!isDatabaseDecrypted()) {
       text +=
-        "\n\nQuicken For Mac is not running. Quicken encrypts its database when " +
+        "\n\nQuicken For Mac is not running, and this install keeps its database encrypted when " +
         "the app is closed. Please ask the user if they'd like to launch Quicken, " +
         "then run: open -a 'Quicken' and retry.";
     } else {
@@ -115,7 +115,7 @@ export function createServer(getDb: () => Database.Database): McpServer {
     {
       instructions: [
         "You have read-only access to the user's Quicken For Mac financial data.",
-        "This server only works on macOS — Quicken For Mac stores data in a Core Data SQLite database inside ~/Documents/*.quicken/data.",
+        "This server only works on macOS — Quicken For Mac stores data in a Core Data SQLite database inside a .quicken bundle (the `data` file).",
         "",
         "## Tool selection guide",
         "- Start with list_accounts to understand what accounts exist and their types.",
@@ -135,14 +135,14 @@ export function createServer(getDb: () => Database.Database): McpServer {
         "- query_transactions returns one row per split entry — a single transaction may produce multiple rows if split across categories.",
         "",
         "## Prerequisites",
-        "- IMPORTANT: Quicken For Mac must be open for this server to work. Quicken encrypts its database when the app is closed.",
+        "- Quicken For Mac should be open. Depending on the install, Quicken may swap the database for an encrypted stub when the app is closed; other installs leave the file readable. The ZACCOUNT table check is the test.",
         "- If a tool returns 'no such table' and Quicken is not running, offer to launch it for the user with: open -a 'Quicken'",
-        "- After launching Quicken, wait a few seconds for it to decrypt the database, then retry the tool call.",
+        "- After launching Quicken, wait a few seconds for it to open the database, then retry the tool call.",
         "",
         "## Database auto-detection",
-        "- If QUICKEN_DB_PATH is not set, the server auto-detects only when exactly one .quicken bundle exists in ~/Documents.",
-        "- If the user has multiple Quicken files, the server refuses to guess. Instruct them to set QUICKEN_DB_PATH explicitly:",
-        "    claude mcp add quicken -e QUICKEN_DB_PATH=~/Documents/YourFile.quicken/data -- npx -y quicken-mac-mcp",
+        "- If QUICKEN_DB_PATH is not set, the server auto-detects only when exactly one .quicken bundle exists across ~/Documents, ~/Library/Application Support/Quicken*/Documents (the retail default) and the Mac App Store container.",
+        "- If the user has multiple Quicken files, the server refuses to guess and lists them. Instruct them to set QUICKEN_DB_PATH explicitly:",
+        "    claude mcp add quicken -e QUICKEN_DB_PATH=/path/to/YourFile.quicken/data -- npx -y quicken-mac-mcp",
       ].join("\n"),
     }
   );

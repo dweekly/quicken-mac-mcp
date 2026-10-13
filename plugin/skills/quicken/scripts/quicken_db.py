@@ -32,16 +32,75 @@ def normalize_database_path(value: str | Path) -> Path:
     return path.resolve()
 
 
-def discover_candidates() -> list[Path]:
-    documents = Path.home() / "Documents"
-    if not documents.is_dir():
-        return []
+def search_directories() -> list[Path]:
+    """Directories Quicken for Mac uses for .quicken bundles, in search order.
 
+    ~/Documents (the original search location), the retail default under
+    ~/Library/Application Support/Quicken*/Documents ("Quicken Beta" and
+    year-suffixed folders included), and the Mac App Store sandbox container.
+    """
+    home = Path.home()
+    dirs = [home / "Documents"]
+    app_support = home / "Library" / "Application Support"
+    for entry in sorted(_entries_if_present(app_support)):
+        if entry.name == "Quicken" or entry.name.startswith("Quicken "):
+            dirs.append(entry / "Documents")
+    dirs.append(
+        home
+        / "Library"
+        / "Containers"
+        / "com.quicken.QuickenAppStore"
+        / "Data"
+        / "Library"
+        / "Application Support"
+        / "Quicken"
+        / "Documents"
+    )
+    return dirs
+
+
+def _entries_if_present(directory: Path) -> list[Path]:
+    """List a directory; absent -> []; present but unreadable -> ProbeError.
+
+    Skipping an unreadable ~/Documents could make discovery settle on a bundle
+    elsewhere that the user did not intend, so refuse instead.
+    """
+    try:
+        return list(directory.iterdir())
+    except (FileNotFoundError, NotADirectoryError):
+        return []
+    except OSError as error:
+        raise ProbeError(
+            f"Cannot read {directory} ({error.strerror}); pass --db or set QUICKEN_DB_PATH."
+        ) from error
+
+
+def _has_data_file(bundle: Path) -> bool:
+    """True when <bundle>/data is a regular file; an unreadable bundle refuses."""
+    data = bundle / "data"
+    try:
+        return data.is_file()
+    except OSError:
+        pass
+    try:
+        data.stat()
+    except FileNotFoundError:
+        return False
+    except OSError as error:
+        raise ProbeError(
+            f"Cannot read {bundle} ({error.strerror}); pass --db or set QUICKEN_DB_PATH."
+        ) from error
+    return False
+
+
+def discover_candidates() -> list[Path]:
     candidates: list[Path] = []
-    for bundle in documents.glob("*.quicken"):
-        data = bundle / "data"
-        if data.is_file():
-            candidates.append(data.resolve())
+    for directory in search_directories():
+        for bundle in _entries_if_present(directory):
+            if bundle.suffix != ".quicken":
+                continue
+            if _has_data_file(bundle):
+                candidates.append((bundle / "data").resolve())
     return sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True)
 
 
@@ -207,7 +266,7 @@ def parser() -> argparse.ArgumentParser:
     probe_parser.add_argument("--db", help="Path to a .quicken bundle or data file.")
 
     subparsers.add_parser(
-        "candidates", help="List Quicken databases found directly under ~/Documents."
+        "candidates", help="List Quicken databases found in the known Quicken locations."
     )
 
     tag_parser = subparsers.add_parser(

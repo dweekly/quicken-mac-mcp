@@ -14,14 +14,14 @@ Quicken for Mac stores its data in a [Core Data](https://developer.apple.com/doc
 - **Z-prefix** -- all table and column names are prefixed with `Z`
 - **TIMESTAMP columns** -- Core Data epoch: seconds since **2001-01-01 00:00:00 UTC**. Add `978307200` to convert to Unix epoch.
 - **Z_ENT values are per-database** -- always look up entity type numbers from `Z_PRIMARYKEY` at runtime; they may differ across Quicken data files.
-- **Encryption** -- Quicken encrypts the `data` file when the app is closed. The database is only readable while Quicken is running.
+- **Encryption** -- depending on the install, Quicken may replace the `data` file with an encrypted stub when the app is closed, so the database is only readable while Quicken is running. Not every install does this: a Quicken Beta 9.3 file under `~/Library/Application Support/Quicken Beta/Documents/` stayed a readable SQLite database with Quicken quit (observed October 2026). Test for the `ZACCOUNT` table rather than assuming.
 
 ### Writing back to the database (forks / one-off scripts)
 
 This MCP server opens the database read-only and never writes. If you fork the schema knowledge here for an enrichment workflow that *does* write (e.g., the [Quicken ↔ Amazon order matcher gist](https://gist.github.com/Als-Pal/3fc9c18949c826c207559939e8d9b90a) that inspired the `split_note` column), Core Data has two non-obvious requirements:
 
 1. **Increment `Z_OPT` on every UPDATE.** It is the optimistic-locking counter Core Data uses to detect concurrent edits. Updates that don't bump `Z_OPT` may be silently rolled back or cause Quicken to corrupt the row on next sync. Always write `SET ZNOTE = ?, Z_OPT = Z_OPT + 1`.
-2. **Quicken must be closed before writing.** The same encryption that requires Quicken to be open for *reads* means concurrent writes from your script while Quicken is running will fight Core Data's in-memory state. Quit Quicken, run your update, then reopen — Quicken will pick up the changed rows.
+2. **Quicken must be closed before writing.** Concurrent writes from your script while Quicken is running will fight Core Data's in-memory state (on installs that encrypt the closed file, you will also need to work from a decrypted copy). Quit Quicken, run your update, then reopen — Quicken will pick up the changed rows.
 
 Always make a file-level backup of the `.quicken/data` file before writing.
 
@@ -3231,8 +3231,8 @@ Always filter on `Z_ENT` (looked up from `Z_PRIMARYKEY`) when querying `ZTAG` to
 
 ### Quicken Database Access
 
-- The database file is located at `~/Documents/<name>.quicken/data`
-- Quicken **encrypts** the file when the application is not running; the `data` file becomes a ~24KB metadata stub
+- The database file is `<name>.quicken/data`. Default locations: `~/Library/Application Support/Quicken/Documents/` (retail/subscription; `Quicken Beta` for the beta channel), the Mac App Store sandbox container, or wherever File → Move To put it (for example `~/Documents`)
+- Depending on the install, Quicken **encrypts** the file when the application is not running; the `data` file becomes a ~24KB metadata stub. Some installs leave it readable (see Core Data Conventions above)
 - The file's inode changes when Quicken opens/closes the database
 - Always open the database in **read-only mode** (`?mode=ro`) to avoid interfering with Quicken's Core Data stack
 

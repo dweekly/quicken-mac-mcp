@@ -21,11 +21,11 @@ The Claude Code plugin install (`claude plugin install quicken-mac-mcp`) bundles
 
 ## Requirements
 
-**Quicken For Mac must be open** while using either the skill or the MCP. Quicken encrypts its database file when the app is closed — the data is only readable while Quicken is running.
+**Quicken For Mac should be open** while using either the skill or the MCP. Depending on the install, Quicken may replace its database file with an encrypted stub when the app is closed; other installs leave the file readable while closed. The probe checks for the `ZACCOUNT` table rather than assuming either way.
 
 ## How it works
 
-Quicken For Mac stores data in a Core Data SQLite database inside a `.quicken` bundle in your Documents folder (e.g., `~/Documents/MyFinances.quicken/data`). The skill teaches Claude how to query that database directly; the MCP server is a thin wrapper that exposes eight prepackaged queries as tools.
+Quicken For Mac stores data in a Core Data SQLite database inside a `.quicken` bundle. The retail/subscription app keeps it in `~/Library/Application Support/Quicken/Documents/` by default (`Quicken Beta` for the beta channel); the Mac App Store build uses its sandbox container; and a file can live anywhere the user chose in File → Move To, for example `~/Documents`. The server looks in all of those (see [Custom database path](#custom-database-path)). The skill teaches Claude how to query that database directly; the MCP server is a thin wrapper that exposes eight prepackaged queries as tools.
 
 ## Install — recommended (Claude Code, plugin)
 
@@ -73,7 +73,7 @@ Restart Claude Desktop and you'll see a hammer icon with 8 tools available.
 
 ### Custom database path
 
-If you have multiple Quicken files, or your `.quicken` bundle isn't in `~/Documents`, set the `QUICKEN_DB_PATH` environment variable:
+If you have multiple Quicken files, or your `.quicken` bundle is somewhere the server does not look, set the `QUICKEN_DB_PATH` environment variable:
 
 ```json
 {
@@ -89,7 +89,13 @@ If you have multiple Quicken files, or your `.quicken` bundle isn't in `~/Docume
 }
 ```
 
-By default, the server auto-detects your Quicken database only when exactly one `.quicken` bundle exists in `~/Documents`. If multiple bundles exist, it refuses to guess; set `QUICKEN_DB_PATH` explicitly.
+By default, the server auto-detects your Quicken database only when exactly one `.quicken` bundle exists across these locations:
+
+- `~/Documents`
+- `~/Library/Application Support/Quicken*/Documents` (retail/subscription default; `Quicken`, `Quicken Beta`, or a year-suffixed folder)
+- `~/Library/Containers/com.quicken.QuickenAppStore/Data/Library/Application Support/Quicken/Documents` (Mac App Store build)
+
+If multiple bundles exist, it refuses to guess and lists them; set `QUICKEN_DB_PATH` explicitly.
 
 ## MCP tools
 
@@ -207,7 +213,7 @@ npm run format    # prettier
 npm run dev       # run server locally
 ```
 
-Set `QUICKEN_DB_PATH` before `npm test` if `~/Documents` holds more than one `.quicken` bundle; otherwise the live-schema suites skip.
+Set `QUICKEN_DB_PATH` before `npm test` if more than one `.quicken` bundle exists across the searched locations; otherwise the live-schema suites skip.
 
 Known issues and planned work live in [`ROADMAP.md`](ROADMAP.md) — open bugs, developer-experience gaps, and deferred dependency upgrades (fresh as of 2026-08-14).
 

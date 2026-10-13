@@ -20,41 +20,99 @@ import { join, resolve } from "path";
 export const CORE_DATA_EPOCH_OFFSET = 978307200;
 
 /**
- * Auto-detect a Quicken database by scanning ~/Documents for .quicken bundles.
- * Returns the path to the `data` file when exactly one bundle exists. Refuses
- * to guess when multiple bundles are present because modification time does not
- * reliably identify the intended or unlocked document.
+ * Directories Quicken For Mac uses for `.quicken` bundles, in the order they
+ * are searched:
+ *
+ *   1. ~/Documents — the location this project searched originally; also where
+ *      a file lands if the user chose it in File → Move To.
+ *   2. ~/Library/Application Support/<Quicken folder>/Documents — the default for the
+ *      retail/subscription app. Quicken's help ("Learning about data files")
+ *      names the "Quicken" folder; Quicken community FAQs show the same path
+ *      with "Quicken Beta" for the beta channel and year-suffixed folder names
+ *      for older releases, so any folder named "Quicken" or "Quicken <suffix>"
+ *      is searched.
+ *   3. The Mac App Store build's sandbox container (also from Quicken's help).
+ */
+export function quickenSearchDirectories(): string[] {
+  const home = homedir();
+  const dirs = [join(home, "Documents")];
+
+  const appSupport = join(home, "Library", "Application Support");
+  for (const entry of readDirectoryIfPresent(appSupport).sort()) {
+    if (entry === "Quicken" || entry.startsWith("Quicken ")) {
+      dirs.push(join(appSupport, entry, "Documents"));
+    }
+  }
+
+  dirs.push(
+    join(
+      home,
+      "Library",
+      "Containers",
+      "com.quicken.QuickenAppStore",
+      "Data",
+      "Library",
+      "Application Support",
+      "Quicken",
+      "Documents"
+    )
+  );
+  return dirs;
+}
+
+/**
+ * Read a directory's entries. A directory that does not exist yields []; one
+ * that exists but cannot be read (for example ~/Documents without a Files and
+ * Folders grant) throws, because silently skipping it could make detection
+ * settle on a bundle elsewhere that the user did not intend.
+ */
+function readDirectoryIfPresent(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch (err: any) {
+    if (err?.code === "ENOENT" || err?.code === "ENOTDIR") return [];
+    throw new Error(
+      `Cannot read ${dir} (${err?.code ?? err}). Set QUICKEN_DB_PATH to your Quicken database path.`,
+      { cause: err }
+    );
+  }
+}
+
+/**
+ * Auto-detect a Quicken database by scanning every known Quicken document
+ * directory for `.quicken` bundles. Returns the path to the `data` file when
+ * exactly one bundle exists across all of them. Refuses to guess when several
+ * are present because modification time does not reliably identify the
+ * intended or unlocked document.
  */
 export function detectQuickenDb(): string {
-  const documentsDir = join(homedir(), "Documents");
+  const searched = quickenSearchDirectories();
+  const bundles: string[] = [];
 
-  let entries: string[];
-  try {
-    entries = readdirSync(documentsDir);
-  } catch {
+  for (const dir of searched) {
+    for (const entry of readDirectoryIfPresent(dir)) {
+      if (entry.endsWith(".quicken")) bundles.push(resolve(dir, entry, "data"));
+    }
+  }
+
+  if (bundles.length === 0) {
     throw new Error(
-      `Cannot read ~/Documents. Set QUICKEN_DB_PATH to your Quicken database path.`
+      `No .quicken bundles found in any of the usual Quicken locations:\n` +
+        searched.map((d) => `  ${d}`).join("\n") +
+        `\n\nSet the database path when adding the server:\n` +
+        `  claude mcp add quicken -e QUICKEN_DB_PATH=/path/to/YourFile.quicken/data -- npx -y quicken-mac-mcp`
     );
   }
 
-  const quickenBundles = entries.filter((e) => e.endsWith(".quicken"));
-
-  if (quickenBundles.length === 0) {
+  if (bundles.length > 1) {
     throw new Error(
-      `No .quicken bundles found in ~/Documents.\n\n` +
-        `Set the database path when adding the server:\n` +
-        `  claude mcp add quicken -e QUICKEN_DB_PATH=~/Documents/YourFile.quicken/data -- npx -y quicken-mac-mcp`
+      `Multiple .quicken bundles found:\n` +
+        bundles.map((b) => `  ${b}`).join("\n") +
+        `\nSet QUICKEN_DB_PATH to the intended Quicken database path.`
     );
   }
 
-  if (quickenBundles.length > 1) {
-    throw new Error(
-      `Multiple .quicken bundles found in ~/Documents. ` +
-        `Set QUICKEN_DB_PATH to the intended Quicken database path.`
-    );
-  }
-
-  return resolve(documentsDir, quickenBundles[0], "data");
+  return bundles[0];
 }
 
 /**
@@ -63,7 +121,7 @@ export function detectQuickenDb(): string {
  * Resolution order for the database path:
  *   1. Explicit `dbPath` argument (e.g., CLI positional arg)
  *   2. QUICKEN_DB_PATH environment variable
- *   3. Auto-detect from ~/Documents/*.quicken/data
+ *   3. Auto-detect: the single `.quicken` bundle across quickenSearchDirectories()
  */
 export function openDatabase(dbPath?: string): Database.Database {
   const resolvedPath = dbPath || process.env.QUICKEN_DB_PATH || detectQuickenDb();
@@ -144,8 +202,8 @@ export function diagnosePath(filePath: string): string {
 
 /**
  * Probe whether an open Quicken database is decrypted. When Quicken For Mac is
- * closed it swaps the bundle for an encrypted stub that has none of the expected
- * Core Data tables, so the presence of ZACCOUNT is our decryption signal.
+ * closed it may swap the bundle for an encrypted stub that has none of the
+ * expected Core Data tables, so the presence of ZACCOUNT is our readiness signal.
  */
 export function isQuickenDecrypted(db: Database.Database): boolean {
   const row = db
@@ -184,7 +242,7 @@ export function createDbAccessor(dbPath?: string): () => Database.Database {
         db = new Database(resolvedPath, { readonly: true });
 
         // Eagerly verify the database is decrypted (i.e. Quicken For Mac is
-        // running). When Quicken is closed the file is an encrypted stub with
+        // running). When Quicken is closed the file may be an encrypted stub with
         // none of the expected tables, so fail fast with a clear message
         // instead of a cryptic "no such table" on the first real query.
         if (!isQuickenDecrypted(db)) {

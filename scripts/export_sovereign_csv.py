@@ -35,6 +35,21 @@ def detect_quicken_db():
         os.path.join(home, "Documents"),
         os.path.join(home, "Library", "Mobile Documents", "com~apple~CloudDocs", "Documents") # iCloud Drive
     ]
+    # Retail/subscription default: ~/Library/Application Support/Quicken*/Documents
+    # (the folder is "Quicken", "Quicken Beta", or year-suffixed on older releases).
+    app_support = os.path.join(home, "Library", "Application Support")
+    try:
+        for name in sorted(os.listdir(app_support)):
+            if name == "Quicken" or name.startswith("Quicken "):
+                search_dirs.append(os.path.join(app_support, name, "Documents"))
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        log(f"Error reading directory {app_support}: {e}")
+    # Mac App Store build keeps its file inside the app sandbox.
+    search_dirs.append(os.path.join(
+        home, "Library", "Containers", "com.quicken.QuickenAppStore", "Data",
+        "Library", "Application Support", "Quicken", "Documents"))
 
     quicken_bundles = []
     for d in search_dirs:
@@ -52,7 +67,8 @@ def detect_quicken_db():
 
     if not quicken_bundles:
         raise FileNotFoundError(
-            "Could not locate any active .quicken bundles in ~/Documents or iCloud Drive.\n"
+            "Could not locate any .quicken bundles in ~/Documents, iCloud Drive, "
+            "~/Library/Application Support/Quicken*/Documents or the App Store container.\n"
             "Please set the QUICKEN_DB_PATH environment variable."
         )
 

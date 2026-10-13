@@ -30,7 +30,7 @@
     "database_path": {
       "type": "string",
       "title": "Database Path",
-      "description": "Path to your .quicken/data file. Leave empty to auto-detect from ~/Documents.",
+      "description": "Path to your .quicken/data file. Leave empty to auto-detect from ~/Documents, ~/Library/Application Support/Quicken*/Documents, or the App Store container (exactly one bundle must exist).",
       "required": false,
       "default": ""
     }
