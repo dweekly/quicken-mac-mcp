@@ -18,12 +18,14 @@ Quicken for Mac stores its data in a [Core Data](https://developer.apple.com/doc
 
 ### Writing back to the database (forks / one-off scripts)
 
-This MCP server opens the database read-only and never writes. If you fork the schema knowledge here for an enrichment workflow that *does* write (e.g., the [Quicken ↔ Amazon order matcher gist](https://gist.github.com/Als-Pal/3fc9c18949c826c207559939e8d9b90a) that inspired the `split_note` column), Core Data has two non-obvious requirements:
+This MCP server opens the database read-only and never writes. If you fork the schema knowledge here for an enrichment workflow that *does* write (e.g., the [Quicken ↔ Amazon order matcher gist](https://gist.github.com/Als-Pal/3fc9c18949c826c207559939e8d9b90a) that inspired the `split_note` column), Core Data has three non-obvious requirements:
 
 1. **Increment `Z_OPT` on every UPDATE.** It is the optimistic-locking counter Core Data uses to detect concurrent edits. Updates that don't bump `Z_OPT` may be silently rolled back or cause Quicken to corrupt the row on next sync. Always write `SET ZNOTE = ?, Z_OPT = Z_OPT + 1`.
 2. **Quicken must be closed before writing.** The same encryption that requires Quicken to be open for *reads* means concurrent writes from your script while Quicken is running will fight Core Data's in-memory state. Quit Quicken, run your update, then reopen — Quicken will pick up the changed rows.
 
-Always make a file-level backup of the `.quicken/data` file before writing.
+3. **If Mobile & Web sync is on, also set the modification timestamps.** Quicken reconciles each row against its cloud copy and the newer side wins, so a row changed with only `Z_OPT + 1` can be reverted by the next sync. Set `ZMODIFICATIONTIMESTAMP` and `ZUSERMODIFIEDTIMESTAMP` to now (Core Data epoch: Unix seconds minus `978307200`) in the same `UPDATE`; that made the desktop row the newer one and the change survived the next reopen (longer-term survival across syncs was not followed).
+
+Always make a file-level backup of the `.quicken/data` file before writing, and put it **outside** the `.quicken` bundle. A copy left inside the bundle is swept into Quicken's own backups and inflates every one of them.
 
 ---
 
@@ -3183,6 +3185,164 @@ JOIN ZRECONCILEDTRANSACTION rt ON rt.ZRECONCILERECORD = rr.Z_PK;
 
 ---
 
+## Field Semantics and Traps
+
+Everything in this section was learned by querying one real-world Quicken For Mac file (a different, newer file than the Quicken 8.5 capture the DDL above comes from: Quicken 9.x, roughly 90,000 transactions, with investment accounts) and cross-checking against the Quicken UI and institution statements. Every mechanism described below is "observed on that file", not a specification: Quicken's model differs between versions, and the skill references in `plugin/skills/quicken/references/` are right to ask you to validate each of them on your own file before relying on it.
+
+### Soft deletes: `ZDELETIONCOUNT`
+
+Every entity table carries `ZDELETIONCOUNT`. On the observed file `0` always meant live and `> 0` always marked a row Quicken had deleted and kept as a tombstone (validate that on yours, as the skill references ask). Two things make the tombstones easy to miss and mostly harmless:
+
+- Quicken **nulls the tombstone's relationships**. Deleted transactions had `ZACCOUNT` NULL, deleted lots had `ZPOSITION` NULL, deleted splits had `ZPARENT` NULL. Any query that inner-joins through those columns (the tools in this repository do) excludes them without a filter.
+- With Mobile & Web sync on, the next successful sync **hard-deleted** the tombstones (dozens at a time). How long they persist without sync was not observed.
+
+Filter `COALESCE(ZDELETIONCOUNT, 0) = 0` on single-table reads (payees, categories, accounts, securities) and on anything that sums a table without joining it, and do not rely on the nulled relationships as a guarantee in other Quicken versions.
+
+### `ZTRANSACTION.ZTYPE` codes
+
+`ZTYPE` tells you what kind of row an investment transaction is. The codes were resolved by matching each row's signature (units in or out, cash in or out, measured over every row of that type) to the Quicken register and, for the ambiguous ones, to the category on the row's `ZCASHFLOWTRANSACTIONENTRY`. Investment rows are `Z_ENT = InvestmentTransaction`; banking rows are type 1.
+
+| `ZTYPE` | Meaning | Signature |
+|---:|---|---|
+| 1 | Banking (cash-flow) transaction | no `ZPOSITION`; `ZUNITS` NULL |
+| 2 | Add Shares | units in, `ZAMOUNT` 0, cost in `ZCOSTBASIS` |
+| 3 | Buy | units in, cash out |
+| 4 | Buy Bonds | units in, cash out |
+| 5 | Buy to Cover | units in, cash out (closes a short) |
+| 7 | Investment expense (advisor fees, etc.) | `ZUNITS` 0, cash out |
+| 8 | Long-term capital gain distribution | `ZUNITS` 0, cash in |
+| 9 | Short-term capital gain distribution | `ZUNITS` 0, cash in |
+| 10 | Dividend / income | `ZUNITS` 0, cash in |
+| 11 | Interest income | `ZUNITS` 0, cash in |
+| 12 | Mixed; not determinable from signature | — |
+| 13 | Reinvest long-term capital gain | every row inert on the observed file: `ZUNITS` 0 and `ZAMOUNT` 0 |
+| 15 | Reinvest dividend | units in, `ZAMOUNT` 0 |
+| 16 | Reinvest interest | units in, `ZAMOUNT` 0 |
+| 17 | Remove Shares, including automatic Placeholders | units out, `ZAMOUNT` 0 |
+| 18 | Return of capital | `ZUNITS` 0, cash in |
+| 19 | Sell | units out, cash in |
+| 20 | Sell (bonds) | units out, cash in |
+| 21 | Short Sell | units out, cash in |
+| 23 | Stock Split | `ZUNITS` 0, `ZAMOUNT` 0; dated on the split |
+
+The mapping is not exhaustive (6, 14 and 22 did not occur in the file it came from, so their meaning is unknown). Never write a `CASE` over it without an `ELSE`.
+
+### `ZFITRANSACTION` is a download archive, not a register
+
+`ZFITRANSACTION` holds what the institution sent. It is **not** deduplicated: the same `ZFITRANSACTIONID` appeared up to roughly twenty times on heavily re-downloaded accounts, and `SUM(ZAMOUNT)` over the table produced a credit-card total in the millions. The amounts are signed and do net; the problem is the duplication, not the sign. Use `ZTRANSACTION` for anything financial, and when you must read the download table, deduplicate on `ZFITRANSACTIONID`.
+
+Rows with no matching `ZTRANSACTION` are mostly historical re-downloads, not a review queue: on one file three quarters of the table was unmatched. Scope to one account and a recent date window before reading anything into them.
+
+The table has no `ZUSERPAYEE` link, but it does carry the raw merchant strings: `ZSTATEMENTPAYEENAME` is populated on most rows, with `ZCCPAYEENAME` and `ZMLINFERREDPAYEE` on a minority. Note that some rows hold an empty string rather than NULL, so test with `NULLIF(TRIM(col), '')`. It carries no security identifier either: `ZUNIQUEID` is NULL in practice, and the security name reaches `ZTRANSACTION.ZFINOTE` only when a download is accepted.
+
+```sql
+SELECT a.ZNAME AS account_name,
+       COUNT(*) AS download_rows,
+       COUNT(DISTINCT f.ZFITRANSACTIONID) AS distinct_downloads
+FROM ZFITRANSACTION f
+JOIN ZACCOUNT a ON a.Z_PK = f.ZACCOUNT
+GROUP BY a.Z_PK, a.ZNAME
+ORDER BY download_rows - distinct_downloads DESC;
+```
+
+### Security identity: `ZTICKER` can be stale, `ZSECURITYID` is authoritative
+
+`ZSECURITY.ZTICKER` is free text that can hold an old symbol or CUSIP. The identifier Quicken actually matches on is `ZSECURITYID.ZUNIQUEID` with `ZUNIQUEIDTYPE` (`CUSIP`, `QCSSYMBOL`, or `MANUAL`). A security once appeared to be filed under the wrong CUSIP purely because `ZTICKER` was stale; acting on the ticker would have meant editing dozens of positions to fix a defect that did not exist. Files also accumulate near-duplicate securities with almost identical names, so always check which `ZSECURITY` row a position actually points at before grouping by name or ticker.
+
+```sql
+SELECT s.Z_PK AS security_id, s.ZNAME AS security_name, s.ZTICKER AS ticker,
+       i.ZUNIQUEIDTYPE AS id_type, i.ZUNIQUEID AS unique_id
+FROM ZSECURITY s
+LEFT JOIN ZSECURITYID i ON i.ZSECURITY = s.Z_PK
+WHERE COALESCE(s.ZDELETIONCOUNT, 0) = 0
+ORDER BY s.ZNAME
+LIMIT 50;
+```
+
+### Lots are derived and volatile; cost basis lives on the transaction
+
+- The editable cost basis of an acquired lot is `ZTRANSACTION.ZCOSTBASIS` on the Add Shares (type 2) or Buy row. `ZLOT.ZLATESTCOSTBASIS` is derived from it.
+- **Editing a transaction made Quicken delete and recreate its `ZLOT` rows with new `Z_PK` values.** Never key anything on a lot's `Z_PK`; identify a lot by security, acquisition date and share count.
+- `ZLOT.ZINITIALUNITS` versus `ZLATESTUNITS` tells you whether shares have been sold from the lot.
+- `ZLOTMOD` links a lot to the transaction that changed it and carries `ZBEFORECOSTBASIS` / `ZAFTERCOSTBASIS`. Realized gain on a sale is the sale proceeds minus the basis relieved. Use a `LEFT JOIN`: on one file one sale in two thousand had no `ZLOTMOD` row and an inner join dropped it.
+
+```sql
+SELECT t.Z_PK AS transaction_id,
+       t.ZAMOUNT AS proceeds,
+       SUM(m.ZBEFORECOSTBASIS - m.ZAFTERCOSTBASIS) AS basis_relieved,
+       t.ZAMOUNT - COALESCE(SUM(m.ZBEFORECOSTBASIS - m.ZAFTERCOSTBASIS), 0) AS realized_gain
+FROM ZTRANSACTION t
+LEFT JOIN ZLOTMOD m ON m.ZTRANSACTION = t.Z_PK
+WHERE t.ZTYPE = 19
+GROUP BY t.Z_PK
+LIMIT 50;
+```
+
+Buys also produce `ZLOTMOD` rows, with a negative before-minus-after (basis added), so do not sum that difference across a mixed set and call it "basis consumed".
+
+### Placeholder transactions
+
+A downloaded investment account is reconciled to the institution's reported holdings, and the adjustment is a `ZTRANSACTION` of type 17 whose `ZNOTE` is `Placeholder`, with a description of the form `+N shares (to reach X)`. Quicken created and resized these automatically on the observed file; the user never enters one, and it disappeared once the real transactions accounted for the position. Accounts also accumulate dead zero-unit placeholders; only non-zero ones matter.
+
+```sql
+SELECT a.ZNAME AS account_name, t.Z_PK AS transaction_id, ROUND(t.ZUNITS, 4) AS units
+FROM ZTRANSACTION t
+JOIN ZACCOUNT a ON a.Z_PK = t.ZACCOUNT
+WHERE t.ZNOTE LIKE '%laceholder%'
+  AND ABS(COALESCE(t.ZUNITS, 0)) > 0.0001;
+```
+
+Exclude placeholders from any analysis of what the user did, and treat a non-zero one as a sign that the account's transaction history does not add up to the broker's share count. When rebuilding lots by hand, a negative placeholder is relieved FIFO from the oldest lots, so delete stale lots before adding corrected ones.
+
+### Stock splits: `ZSECURITYSPLIT` and `ZTYPE = 23`
+
+`ZSECURITYSPLIT` holds the corporate action (`ZSECURITY`, `ZSPLITDATE`, `ZNUMERATOR`, `ZDENOMINATOR`). New shares per old share is `ZNUMERATOR / ZDENOMINATOR`, but the two columns arrive in two shapes: downloaded rows are stored as `1 : 1/ratio` rounded to six decimals (a 3-for-1 is `1 / 0.333333`; the shape `1 / 5` also occurs, which reads as a 1-for-5 reverse split), while a split typed into the register is stored as `ratio : 1` (a 6-for-1 was `6 / 1`). Compare the quotient, never the columns.
+
+The register side of a split is a `ZTRANSACTION` of type 23 in the holding account on the split date. Historic files may instead carry a split as a new zero-basis lot dated on the split day, so a zero-basis lot on a split date is a mishandled split, not a missing transfer. Since the Quicken 9.3 beta a quote update can propose and apply Stock Split transactions wherever `ZSECURITYSPLIT` has a row and the register has no type-23 row for that date; on the observed file it compared the stored columns literally, so a `6 / 1` register split was reported as a "different ratio" from the downloaded `1 / 0.166667`.
+
+```sql
+SELECT s.ZNAME AS security_name,
+       date(sp.ZSPLITDATE + 978307200, 'unixepoch') AS split_date,
+       ROUND(sp.ZNUMERATOR / sp.ZDENOMINATOR, 4) AS new_per_old
+FROM ZSECURITYSPLIT sp
+JOIN ZSECURITY s ON s.Z_PK = sp.ZSECURITY
+WHERE COALESCE(sp.ZDELETIONCOUNT, 0) = 0
+ORDER BY sp.ZSPLITDATE DESC
+LIMIT 50;
+```
+
+### Orphan scaffold rows
+
+Clicking New in a register commits a shell row immediately. If the entry is abandoned the row can persist with `ZACCOUNT` NULL, zero amount, zero units and no position. It is invisible in every register and harmless to balances, but it breaks tools that assume every transaction has an account: a split whose parent has no account is skipped by an inner join to `ZACCOUNT` while the split itself survives, which is one way an export with a foreign-key constraint fails. Quitting and relaunching Quicken cleared most of them on the observed file.
+
+```sql
+SELECT COUNT(*) AS orphan_shells
+FROM ZTRANSACTION
+WHERE ZACCOUNT IS NULL
+  AND COALESCE(ZAMOUNT, 0) = 0
+  AND COALESCE(ZUNITS, 0) = 0
+  AND ZPOSITION IS NULL;
+```
+
+### Budget tables
+
+- `ZBUDGETTARGET.ZEFFECTIVEDATENUM` was `YYYYMM` as an integer on the observed file, not a timestamp; confirm the mapping on yours as `references/budgets.md` asks.
+- Targets can exist with `ZLINEITEM` NULL (leftovers from deleted budgets). A raw `SUM` over the table includes them; a join to `ZBUDGETLINEITEM` silently drops them. Know which you are doing before reconciling a total.
+- A budget can hold a line item for a parent category **and** for its children. Summing every line double-counts; dropping every parent loses money carried on the parent itself. The rule that is correct on every budget: each line item contributes its own total minus the totals of line items whose category's `ZPARENTCATEGORY` is this line's category.
+- Group by `ZBUDGETLINEITEM.Z_PK`, not by category name; `ZTAG.ZNAME` is not unique.
+- Budget income targets are stored negative, the opposite of `ZTRANSACTION`. Expense targets are usually positive but not always, so never `ABS()` a target.
+- `ZBUDGET.ZNAME` is free text and its targets can span years the name does not mention. Filter on `ZEFFECTIVEDATENUM`, never on the name.
+
+### Two cash balances that disagree
+
+`SUM(ZTRANSACTION.ZAMOUNT)` for an account is what the register shows. `ZACCOUNT.ZONLINEBANKINGLEDGERBALANCEAMOUNT` is the last balance the institution sent. Neither is the account's value for reporting (see `references/balances.md`, which rightly refuses to derive an investment balance from transactions), but the gap between them is diagnostic: an investment account whose register sum was negative against a positive downloaded cash balance turned out to have a phantom position offsetting missing cash. Quote the gap as a data-quality signal, and say which figure is which.
+
+### Categories
+
+`ZTRANSACTION` has no category column. `ZMACHINEGENERATEDCATEGORYSOURCE` records how a category was assigned, not what it is. The category is `ZCASHFLOWTRANSACTIONENTRY.ZCATEGORYTAG` → `ZTAG.Z_PK`, one per split, and the `Parent:Child` display name comes from `ZTAG.ZPARENTCATEGORY`.
+
+---
+
 ## Important Notes
 
 ### Shared Physical Tables (Entity Type Inheritance)
@@ -3194,9 +3354,18 @@ Core Data uses **single-table inheritance** for several entity hierarchies. The 
 | `ZTRANSACTION` | Transaction, CashFlowTransaction, SmartCashFlowTransaction, InvestmentTransaction | Investment-specific columns (`ZUNITS`, `ZCOMMISSION`, `ZPLACEHOLDERCOSTBASISUNITS`, etc.) are NULL for cash flow rows. Per-unit price is not stored directly — derive it from `ZAMOUNT` ÷ `ZUNITS`, or look up `ZSECURITYQUOTE.ZCLOSINGPRICE` for the trade date. |
 | `ZTAG` | Tag, CategoryTag, UserTag, CashFlowTag | Filter on Z_ENT to get only categories vs. user tags |
 
-### Z79_PARENT Artifact
+### `Z79_PARENT` and other `Z<n>_<RELATION>` columns
 
-The `ZTAG` table contains a column `Z79_PARENT` alongside `ZPARENTCATEGORY`. This is a Core Data artifact from model migrations -- the `79` in `Z79_PARENT` references a historical `Z_ENT` value for the `CategoryTag` entity. In practice, use `ZPARENTCATEGORY` for the parent-child category relationship.
+`ZCASHFLOWTRANSACTIONENTRY` carries `Z79_PARENT` next to `ZPARENT`, and `ZATTACHMENT` carries `Z79_TRANSACTION` next to `ZTRANSACTION`. These are not duplicate foreign keys and not migration leftovers. When a to-one relationship points at an **abstract** entity (`Transaction`, whose `Z_ENT` is 79 in the captured files), Core Data stores a second column holding the `Z_ENT` of the destination row's **concrete** subentity, so it knows which subclass to instantiate. On a live file every `ZCASHFLOWTRANSACTIONENTRY.Z79_PARENT` equalled the parent transaction's `Z_ENT` (`CashFlowTransaction`, `SmartCashFlowTransaction` or `InvestmentTransaction`); rows whose `ZPARENT` is NULL have it NULL too.
+
+```sql
+SELECT e.Z79_PARENT, t.Z_ENT, COUNT(*) AS rows_
+FROM ZCASHFLOWTRANSACTIONENTRY e
+JOIN ZTRANSACTION t ON t.Z_PK = e.ZPARENT
+GROUP BY e.Z79_PARENT, t.Z_ENT;
+```
+
+Two consequences: join on `ZPARENT` / `ZTRANSACTION`, never on the `Z79_*` column (that join returns almost nothing and looks like an empty result rather than an error); and read `Z79_PARENT` only when you need to know whether a split belongs to a banking or an investment transaction. The `79` is model-version dependent, so derive it from `Z_PRIMARYKEY` rather than hardcoding it.
 
 ### Signed Amounts
 
@@ -3206,7 +3375,7 @@ The `ZTAG` table contains a column `Z79_PARENT` alongside `ZPARENTCATEGORY`. Thi
 
 ### Date Fields
 
-- `ZTRANSACTION.ZPOSTEDDATE` -- the date the transaction posted; **can be NULL** for pending/scheduled transactions
+- `ZTRANSACTION.ZPOSTEDDATE` -- the date the transaction posted; populated for **downloaded** rows only. It is **NULL on every hand-entered transaction**, not just pending or scheduled ones (on one real-world file, about half of all rows). `WHERE ZPOSTEDDATE <= x` therefore silently drops everything typed into the register; always use `COALESCE(ZPOSTEDDATE, ZENTEREDDATE)`
 - `ZTRANSACTION.ZENTEREDDATE` -- when the user entered or the system downloaded the transaction; always populated
 - Both are Core Data timestamps (seconds since 2001-01-01)
 
