@@ -46,11 +46,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:docs": "vitest run src/__tests__/docs.test.ts",
+    "schema:check": "python3 scripts/refresh_schema_doc.py --check",
+    "schema:refresh": "python3 scripts/refresh_schema_doc.py",
     "pack:mcpb": "./scripts/pack-mcpb.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "better-sqlite3": "^12.11.1"
+    "better-sqlite3": "^12.11.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
@@ -67,6 +70,10 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "tmp": "^0.2.7"
+    "minimatch": "^11.0.5",
+    "tmp": "^0.2.7",
+    "@anthropic-ai/mcpb": {
+      "zod": "^4.6.7"
+    }
   }
 }

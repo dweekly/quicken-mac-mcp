@@ -4,11 +4,21 @@
 
 ### Fixed
 
+- `list_portfolio`, `quicken-mac-mcp export` and the CSV exporter dropped any position with a negative share count because they kept only lots with positive units. Such positions (a short, or shares removed with no recorded purchase) now appear with negative shares, matching the skill's holdings recipe.
 - The budgets skill recipe no longer selects rollover columns that current Quicken no longer has (`ZBUDGETLINEITEM.ZROLLOVER`, `ZBUDGETTARGET.ZROLLOVERRESETAMT`); it now explains how to find the rollover columns for the installed version.
+
+### Added
+
+- `list_portfolio` reports each security's currency when the Quicken file records one (`ZSECURITY.ZCURRENCY`, present in current Quicken, absent in 8.5).
+- `npm run schema:check` and `npm run schema:refresh` compare `docs/schema.md` with an open Quicken file and rewrite its generated parts, so a Quicken update that changes the database layout is caught by the live test suite instead of going unnoticed.
 
 ### Changed
 
-- `docs/schema.md` is recaptured from Quicken 9.3.1: renumbered join tables (`Z_16USERTAGS`, `Z_56USERTAGS`), the new `ZACCOUNTGROUP` table, removed `ZTAXLINEITEM`, and new columns. It also corrects the description of the `Z79_PARENT` column.
+- `docs/schema.md` is recaptured from Quicken 9.3.1: renumbered join tables (`Z_16USERTAGS`, `Z_56USERTAGS`), the new `ZACCOUNTGROUP` table, removed `ZTAXLINEITEM`, and new columns. It also corrects the description of the `Z79_PARENT` column, replaces the account-type list with the values Quicken actually stores (`BROKERAGENORMAL`, `DEFERREDCOMPRETIREMENT401K`, and so on, rather than `INVESTMENT` or `RETIREMENT`), and names the four budget rollover modes.
+
+### Security
+
+- Updated transitive dependencies to clear 15 `npm audit` advisories, and declared `zod` as a direct dependency at 4.6.7 (it was previously used without being declared, resolving to a 3.x release with a memory-exhaustion advisory). Three `overrides` force patched `minimatch`, `zod` and `tmp` into development tooling that still pins vulnerable versions. `npm audit` now reports no advisories.
 
 ## 1.6.0
 

@@ -383,7 +383,7 @@ describeWithDb("list_portfolio", () => {
   it("only returns holdings with non-zero shares", () => {
     const result = listPortfolio(db, {});
     result.forEach((r: any) => {
-      expect(r.current_shares).toBeGreaterThan(0);
+      expect(Math.abs(r.current_shares)).toBeGreaterThan(0);
     });
   });
 
