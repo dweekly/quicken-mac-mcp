@@ -3257,7 +3257,7 @@ Adding or removing an entity renumbers every entity after it alphabetically, and
 - **Renumbered join tables**: `Z_15USERTAGS` is now `Z_16USERTAGS` (columns `Z_16CASHFLOWTRANSACTIONENTRIES`, `Z_77USERTAGS`), `Z_55USERTAGS` is now `Z_56USERTAGS`, and the entity-numbered columns of `Z_1BUDGETS` and `Z_1DOWNLOADSESSIONS` moved up by one. Discover these names from `Z_PRIMARYKEY` and `sqlite_master`; never hardcode them.
 - **Added**: the `AccountGroup` entity and `ZACCOUNTGROUP` table, with `ZACCOUNT.ZACCOUNTGROUP` and `ZSMARTREGISTER.ZACCOUNTGROUP` pointing at it; per-asset-type cost-basis settings for ETFs, crypto and commodities on `ZACCOUNT`; `ZSECURITY.ZCURRENCY`; recurring-invoice columns on `ZINVOICE`; `ZTRANSACTION.ZAUTOUPDATEEBILLDATE`.
 - **Removed, not moved**: the `TaxLineItem` entity and `ZTAXLINEITEM` table, and `ZSALESTAXRATE.ZTAXAGENCYNAME`. No table or column elsewhere took their place: tax-line mapping was already on `ZTAG` (`ZTAXREFUS`, `ZTAXREFCA`) and the agency was already reachable through `ZSALESTAXRATE.ZSALESTAXAGENCY`.
-- **Budget rollover moved**: `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT` are gone; `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE` replace them. Whether Quicken carried old rollover settings into the new columns, and what the `ZROLLOVERMODE` values mean, has not been verified against the Quicken UI.
+- **Budget rollover moved**: `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT` are gone; `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE` replace them. The Quicken 9.3.1 binary names four modes for this column (`BudgetTargetRolloverMode_e`): `NO_ROLLOVER`, `ROLLOVER_ALL`, `ROLLOVER_POSITIVE_ONLY` and `ROLLOVER_NEGATIVE_ONLY`, matching the UI choices "Don't rollover", "Rollover balances at the end of every month", "Rollover only positive balances" and "Rollover only negative balances". Which integer is stored for each mode, and whether Quicken carried old rollover settings into the new columns, has not been verified against a file that has budgets.
 
 These changes did not all arrive in one release. Quicken ships every historical version of its Core Data model inside the app (`QFramework.framework/Resources/ModelBundle.momd`), and searching those files for the entity and attribute names dates each change by model version: the tax items are in versions 7 through 83 and absent from 84 on; `rollover` and `rolloverResetAmt` are last present in version 85 and `rolloverMode` first appears in 86; `rolloverOverride` and `AccountGroup` first appear in version 87. Quicken 9.3.1 uses version 88. Which Quicken release shipped each model version is not recorded here.
 
@@ -3275,12 +3275,19 @@ These changes did not all arrive in one release. Quicken ships every historical 
 
 ### Account Type Values
 
-The `ZACCOUNT.ZTYPENAME` column stores account types as **uppercase strings**:
+The `ZACCOUNT.ZTYPENAME` column stores account types as **uppercase strings**. Investment and retirement accounts carry a specific subtype rather than a generic `INVESTMENT` or `RETIREMENT` value (neither was observed), so match them by prefix or list the subtypes you want.
 
-- `CHECKING`, `SAVINGS`, `CREDITCARD`, `CASH`
-- `INVESTMENT`, `RETIREMENT` (brokerage/IRA accounts)
-- `MORTGAGE`, `LOAN`, `LIABILITY`
-- `ASSET`, `PROPERTY`
+Observed in a live Quicken 9.3.1 file:
+
+- Banking and credit: `CHECKING`, `SAVINGS`, `CREDITCARD`
+- Brokerage: `BROKERAGENORMAL`, `BROKERAGEOTHER`, `BROKERAGEEDUCATIONSAVINGS`
+- Retirement: `RETIREMENTIRA`, `RETIREMENTROTHIRA`, `DEFERREDCOMPRETIREMENT401K`
+- Debt: `MORTGAGE`, `LOAN`, `HOMEEQUITY`, `LIABILITY`
+- Other: `ASSET`
+
+Present as constants in the Quicken 9.3.1 application binary but not observed in a data file, so unconfirmed as stored values: `CASH`, `REALESTATE`, `BROKERAGETRUST`, `BROKERAGEUGMA`, `RETIREMENTSEP`, `RETIREMENTKEOGH`, `DEFERREDCOMPRETIREMENT403B`, `DEFERREDCOMPRETIREMENTROTH401K`, and Canadian brokerage types (`BROKERAGECANADARRSP`, `BROKERAGECANADATFSA`, `BROKERAGECANADARESP`, `BROKERAGECANADARRIF`, `BROKERAGECANADARDSP`, `BROKERAGECANADARPP`, `BROKERAGECANADAPRPP`).
+
+To see what a given file uses: `SELECT ZTYPENAME, COUNT(*) FROM ZACCOUNT GROUP BY ZTYPENAME`.
 
 ### ZTAG Multi-Entity Usage
 
