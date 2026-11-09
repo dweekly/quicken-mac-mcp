@@ -57,8 +57,16 @@ node -e "
 echo "==> Installing production dependencies..."
 cd "$STAGING"
 npm ci --omit=dev --ignore-scripts
-# Rebuild better-sqlite3 native addon (required for macOS)
-npm rebuild better-sqlite3
+# better-sqlite3 13+ ships prebuilt native addons for every platform inside the
+# package and has no install step. Quicken For Mac only runs on macOS, and each
+# bundle targets one architecture, so keep only this machine's addon.
+ADDON="darwin-$(node -p process.arch).node"
+PREBUILDS="node_modules/better-sqlite3/prebuilds"
+if [[ ! -f "$PREBUILDS/$ADDON" ]]; then
+  echo "error: $PREBUILDS/$ADDON is missing; bundles must be packed on macOS" >&2
+  exit 1
+fi
+find "$PREBUILDS" -type f ! -name "$ADDON" -delete
 
 echo "==> Packing .mcpb..."
 "$ROOT/node_modules/.bin/mcpb" pack "$STAGING" "$OUTPUT"

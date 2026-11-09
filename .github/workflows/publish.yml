@@ -114,8 +114,14 @@ jobs:
         run: |
           # The staging directory is removed after packing, so inspect the
           # native addon embedded in the archive instead.
+          # better-sqlite3 ships one prebuilt addon per platform; the bundle
+          # must contain exactly the one for this architecture.
+          unzip -Z1 "${{ matrix.asset }}" 'node_modules/better-sqlite3/prebuilds/*' \
+            | tee addons.txt
+          test "$(cat addons.txt)" = \
+            "node_modules/better-sqlite3/prebuilds/darwin-${EXPECTED_ARCH}.node"
           unzip -p "${{ matrix.asset }}" \
-            node_modules/better-sqlite3/build/Release/better_sqlite3.node \
+            "node_modules/better-sqlite3/prebuilds/darwin-${EXPECTED_ARCH}.node" \
             > better_sqlite3.node
           file better_sqlite3.node
           case "$EXPECTED_ARCH" in

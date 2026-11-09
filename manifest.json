@@ -72,7 +72,7 @@
   "compatibility": {
     "platforms": ["darwin"],
     "runtimes": {
-      "node": ">=22.0.0"
+      "node": "^22.14.0 || >=23.6.0"
     }
   }
 }
