@@ -451,7 +451,7 @@ async function run() {
 
       const parseResult = pDef.zod.safeParse(val);
       if (!parseResult.success) {
-        const errMsg = parseResult.error.errors.map((e) => e.message).join(", ");
+        const errMsg = parseResult.error.issues.map((e) => e.message).join(", ");
         errors.push(`Invalid value for --${pName.replace(/_/g, "-")}: ${errMsg}`);
       } else {
         validatedArgs[pName] = parseResult.data;

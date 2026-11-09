@@ -16,6 +16,10 @@
 
 - `docs/schema.md` is recaptured from Quicken 9.3.1: renumbered join tables (`Z_16USERTAGS`, `Z_56USERTAGS`), the new `ZACCOUNTGROUP` table, removed `ZTAXLINEITEM`, and new columns. It also corrects the description of the `Z79_PARENT` column, replaces the account-type list with the values Quicken actually stores (`BROKERAGENORMAL`, `DEFERREDCOMPRETIREMENT401K`, and so on, rather than `INVESTMENT` or `RETIREMENT`), and names the four budget rollover modes.
 
+### Security
+
+- Updated transitive dependencies to clear 15 `npm audit` advisories, and declared `zod` as a direct dependency at 4.6.7 (it was previously used without being declared, resolving to a 3.x release with a memory-exhaustion advisory). Three `overrides` force patched `minimatch`, `zod` and `tmp` into development tooling that still pins vulnerable versions. `npm audit` now reports no advisories.
+
 ## 1.6.0
 
 ### Added
