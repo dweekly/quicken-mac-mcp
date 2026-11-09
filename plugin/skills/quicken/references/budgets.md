@@ -26,11 +26,9 @@ SELECT b.Z_PK AS budget_id,
        parent_cat.ZNAME AS parent_category,
        a.ZNAME AS account_name,
        li.ZISTRANSFEROUT AS is_transfer_out,
-       li.ZROLLOVER AS rollover,
        li.ZTYPE AS line_item_type,
        target.ZEFFECTIVEDATENUM AS effective_date_number,
-       target.ZAMOUNT AS target_amount,
-       target.ZROLLOVERRESETAMT AS rollover_reset_amount
+       target.ZAMOUNT AS target_amount
 FROM ZBUDGET b
 JOIN ZBUDGETLINEITEM li ON li.ZBUDGET = b.Z_PK
 LEFT JOIN ZTAG cat
@@ -52,6 +50,6 @@ ORDER BY b.ZNAME,
 - Keep each budget's currency separate.
 - Distinguish category line items, account-specific line items, and transfer-out line items.
 - Do not convert `ZEFFECTIVEDATENUM` by guessing. Inspect its distinct values, compare a few targets with the Quicken UI, and document the mapping used for that file.
-- Expose rollover behavior separately from the base target amount.
+- Expose rollover behavior separately from the base target amount. Rollover columns differ by Quicken version, so the query above omits them: run `PRAGMA table_info(ZBUDGETLINEITEM)` and `PRAGMA table_info(ZBUDGETTARGET)` and add whichever exist. Quicken 9.3 has `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE`; earlier versions had `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT`. Compare a few targets with the Quicken UI before interpreting `ZROLLOVERMODE` values.
 - Do not infer that a non-zero deletion counter always means a tombstone without validating representative records.
 - When comparing budget to actual spending, reuse the transfer, account, currency, date, and uncategorized rules from `cash-flow.md`.

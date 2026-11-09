@@ -1,6 +1,6 @@
 # Quicken For Mac Database Schema Reference
 
-> Captured from Quicken 8.5 for Mac, March 2026.
+> Captured from Quicken 9.3.1 for Mac, November 2026.
 > 
 > **No personal financial data is included.** This document contains only structural schema information: table definitions, column names, indexes, entity types, and relationships.
 
@@ -36,6 +36,7 @@ There are **84 entity types** in total. Grouped by functional area:
 ### Core Financial
 
 - `Account`
+- `AccountGroup` -- user-defined account groupings (`ZACCOUNT.ZACCOUNTGROUP`)
 - `Transaction` -- abstract base; not directly instantiated
 - `CashFlowTransaction` -- checking, credit card, savings transactions (Z_ENT varies)
 - `SmartCashFlowTransaction` -- scheduled/recurring transactions
@@ -136,7 +137,6 @@ There are **84 entity types** in total. Grouped by functional area:
 - `QObject`
 - `SyncError`
 - `CloudSyncData`
-- `TaxLineItem`
 
 ---
 
@@ -287,7 +287,40 @@ CREATE TABLE ZACCOUNT (
     ZBALANCECHARTFILTERS BLOB,
     ZSHOWCREDITLIMITLINEINCHART INTEGER,
     ZCREDITLIMITLINECOLORSTRING VARCHAR,
-    ZREALESTATELASTUSEDUPDATEMETHOD VARCHAR
+    ZREALESTATELASTUSEDUPDATEMETHOD VARCHAR,
+    ZCOSTBASISALGORITHMCOMMODITY INTEGER,
+    ZCOSTBASISALGORITHMCRYPTO INTEGER,
+    ZCOLORSTRING VARCHAR,
+    ZCOSTBASISALGORITHMETF INTEGER,
+    ZDISPLAYVALUELINESHAVECOMPLETEDINITIALSETUP INTEGER,
+    ZMMFPOSITIONSYMBOLS BLOB,
+    ZCLOUDCHANNEL VARCHAR,
+    ZACCOUNTGROUP INTEGER,
+    ZCLOUDINSTITUTIONID VARCHAR,
+    ZCLOUDCPINSTITUTIONID VARCHAR,
+    ZSUPPORTSDETAILEDINVESTING INTEGER,
+    ZREGISTERCOLORSTRING VARCHAR
+)
+```
+
+#### ZACCOUNTGROUP
+
+```sql
+CREATE TABLE ZACCOUNTGROUP (
+    Z_PK INTEGER PRIMARY KEY,
+    Z_ENT INTEGER,
+    Z_OPT INTEGER,
+    ZDELETIONCOUNT INTEGER,
+    ZQUICKENID INTEGER,
+    ZSEPARATE INTEGER,
+    ZSMARTREGISTER INTEGER,
+    ZCREATIONTIMESTAMP TIMESTAMP,
+    ZMODIFICATIONTIMESTAMP TIMESTAMP,
+    ZCOLORSTRING VARCHAR,
+    ZDATASOURCE VARCHAR,
+    ZGUID VARCHAR,
+    ZNAME VARCHAR,
+    ZSYNCID VARCHAR
 )
 ```
 
@@ -390,7 +423,8 @@ CREATE TABLE ZTRANSACTION (
     ZPREMATCHPROPERTIES BLOB,
     ZCHECKPROPERTIES BLOB,
     ZAUTOADJUSTAVERAGENUMPAYMENTS INTEGER,
-    ZAUTOADJUSTAMOUNTTYPE VARCHAR
+    ZAUTOADJUSTAMOUNTTYPE VARCHAR,
+    ZAUTOUPDATEEBILLDATE INTEGER
 )
 ```
 
@@ -751,7 +785,9 @@ CREATE TABLE ZSECURITY (
     ZNAME VARCHAR,
     ZOPTIONTYPE VARCHAR,
     ZSYNCID VARCHAR,
-    ZTICKER VARCHAR
+    ZTICKER VARCHAR,
+    ZASSETCLASSPERCENTAGEMIDCAPSTOCK DECIMAL,
+    ZCURRENCY VARCHAR
 )
 ```
 
@@ -910,7 +946,8 @@ CREATE TABLE ZFIPOSITION (
     ZSECURITYTYPEDESCRIPTION VARCHAR,
     ZSYNCID VARCHAR,
     ZUNIQUEID VARCHAR,
-    ZUNIQUEIDTYPE VARCHAR
+    ZUNIQUEIDTYPE VARCHAR,
+    ZASSETCLASSPERCENTAGEMIDCAPSTOCK DECIMAL
 )
 ```
 
@@ -1102,7 +1139,9 @@ CREATE TABLE ZCLOUDFILOGIN (
     ZCPCHANNEL VARCHAR,
     ZCPLOGINID VARCHAR,
     ZLASTREFRESHSUCCESSTIMESTAMP TIMESTAMP,
-    ZLASTREFRESHATTEMPTTIMESTAMP TIMESTAMP
+    ZLASTREFRESHATTEMPTTIMESTAMP TIMESTAMP,
+    ZCPINSTITUTIONID VARCHAR,
+    ZINSTITUTIONID VARCHAR
 )
 ```
 
@@ -1545,7 +1584,8 @@ CREATE TABLE ZIFSBILLPAYBILLERACCOUNT (
     ZNICKNAME VARCHAR,
     ZSYNCID VARCHAR,
     ZACCOUNTNUMBERSUFFIX VARCHAR,
-    ZBILLERNAME VARCHAR
+    ZBILLERNAME VARCHAR,
+    ZSTATUS VARCHAR
 )
 ```
 
@@ -1682,18 +1722,17 @@ CREATE TABLE ZBUDGETLINEITEM (
     Z_ENT INTEGER,
     Z_OPT INTEGER,
     ZDELETIONCOUNT INTEGER,
+    ZISTRANSFEROUT INTEGER,
     ZQUICKENID INTEGER,
-    ZROLLOVER INTEGER,
+    ZTYPE INTEGER,
+    ZACCOUNT INTEGER,
     ZBUDGET INTEGER,
     ZCATEGORYTAG INTEGER,
     ZCREATIONTIMESTAMP TIMESTAMP,
     ZMODIFICATIONTIMESTAMP TIMESTAMP,
     ZDATASOURCE VARCHAR,
     ZGUID VARCHAR,
-    ZSYNCID VARCHAR,
-    ZACCOUNT INTEGER,
-    ZISTRANSFEROUT INTEGER,
-    ZTYPE INTEGER
+    ZSYNCID VARCHAR
 )
 ```
 
@@ -1707,14 +1746,15 @@ CREATE TABLE ZBUDGETTARGET (
     ZDELETIONCOUNT INTEGER,
     ZEFFECTIVEDATENUM INTEGER,
     ZQUICKENID INTEGER,
+    ZROLLOVERMODE INTEGER,
     ZLINEITEM INTEGER,
     ZCREATIONTIMESTAMP TIMESTAMP,
     ZMODIFICATIONTIMESTAMP TIMESTAMP,
     ZAMOUNT DECIMAL,
-    ZROLLOVERRESETAMT DECIMAL,
     ZDATASOURCE VARCHAR,
     ZGUID VARCHAR,
-    ZSYNCID VARCHAR
+    ZSYNCID VARCHAR,
+    ZROLLOVEROVERRIDE DECIMAL
 )
 ```
 
@@ -1794,7 +1834,8 @@ CREATE TABLE ZSMARTREGISTER (
     ZFILTERSJSON VARCHAR,
     ZSPENDINGFILTERS BLOB,
     ZINCOMEFILTERS BLOB,
-    ZBALANCECHARTFILTERS BLOB
+    ZBALANCECHARTFILTERS BLOB,
+    ZACCOUNTGROUP INTEGER
 )
 ```
 
@@ -1834,7 +1875,8 @@ CREATE TABLE ZBUSINESS (
     ZTYPESTRING VARCHAR,
     ZWEBSITE VARCHAR,
     ZUSERMODIFIEDTIMESTAMP TIMESTAMP,
-    ZDEFAULTPAYMENTTERMS INTEGER
+    ZDEFAULTPAYMENTTERMS INTEGER,
+    ZACCOUNTINGBASISSTRING VARCHAR
 )
 ```
 
@@ -1931,7 +1973,21 @@ CREATE TABLE ZINVOICE (
     ZFROZEN_BUSINESS_WEBSITE VARCHAR,
     ZEMAILSUBJECT VARCHAR,
     ZEMAILMESSAGE VARCHAR,
-    ZPAYMENTTERMS INTEGER
+    ZPAYMENTTERMS INTEGER,
+    ZPAYMENTMETHOD_CARD INTEGER,
+    ZPAYMENTMETHOD_ACH INTEGER,
+    ZRECURRENCEJSON VARCHAR,
+    ZTYPESTRING VARCHAR,
+    ZISSENT INTEGER,
+    ZAUTOSENDDAYS INTEGER,
+    ZISPAUSED INTEGER,
+    ZRECURRENCESERIESNAME VARCHAR,
+    ZAUTOSEND INTEGER,
+    ZISCOMPLETED INTEGER,
+    ZAUTOACCEPTDAYS INTEGER,
+    ZAUTOSENDSTARTDATE TIMESTAMP,
+    ZREMINDERDAYS INTEGER,
+    ZSOURCERECURRINGINVOICEGUID VARCHAR
 )
 ```
 
@@ -2174,14 +2230,13 @@ CREATE TABLE ZSALESTAXRATE (
     ZSALESTAXAGENCY INTEGER,
     ZCREATIONTIMESTAMP TIMESTAMP,
     ZMODIFICATIONTIMESTAMP TIMESTAMP,
+    ZUSERMODIFIEDTIMESTAMP TIMESTAMP,
     ZRATE DECIMAL,
     ZDATASOURCE VARCHAR,
     ZGUID VARCHAR,
     ZNAME VARCHAR,
     ZSYNCID VARCHAR,
-    ZTAXAGENCYNAME VARCHAR,
-    ZUSERDESCRIPTION VARCHAR,
-    ZUSERMODIFIEDTIMESTAMP TIMESTAMP
+    ZUSERDESCRIPTION VARCHAR
 )
 ```
 
@@ -2507,39 +2562,27 @@ CREATE TABLE ZCLOUDSYNCDATA (
     ZRESOURCETYPE VARCHAR
 )
 ```
-#### ZTAXLINEITEM
-
-```sql
-CREATE TABLE ZTAXLINEITEM (
-    Z_PK INTEGER PRIMARY KEY,
-    Z_ENT INTEGER,
-    Z_OPT INTEGER,
-    ZFORM VARCHAR,
-    ZLINENUMBER VARCHAR,
-    ZUSERDESCRIPTION VARCHAR
-)
-```
 
 
 ### Join Tables (Many-to-Many)
 
-#### Z_15USERTAGS
+#### Z_16USERTAGS
 
 ```sql
-CREATE TABLE "Z_15USERTAGS" (
-    Z_15CASHFLOWTRANSACTIONENTRIES INTEGER,
-    Z_76USERTAGS INTEGER,
-    PRIMARY KEY (Z_15CASHFLOWTRANSACTIONENTRIES, Z_76USERTAGS)
+CREATE TABLE "Z_16USERTAGS" (
+    Z_16CASHFLOWTRANSACTIONENTRIES INTEGER,
+    Z_77USERTAGS INTEGER,
+    PRIMARY KEY (Z_16CASHFLOWTRANSACTIONENTRIES, Z_77USERTAGS)
 )
 ```
 
-#### Z_55USERTAGS
+#### Z_56USERTAGS
 
 ```sql
-CREATE TABLE "Z_55USERTAGS" (
-    Z_55QUICKFILLRULESPLITENTRIES INTEGER,
-    Z_76USERTAGS1 INTEGER,
-    PRIMARY KEY (Z_55QUICKFILLRULESPLITENTRIES, Z_76USERTAGS1)
+CREATE TABLE "Z_56USERTAGS" (
+    Z_56QUICKFILLRULESPLITENTRIES INTEGER,
+    Z_77USERTAGS1 INTEGER,
+    PRIMARY KEY (Z_56QUICKFILLRULESPLITENTRIES, Z_77USERTAGS1)
 )
 ```
 
@@ -2548,8 +2591,8 @@ CREATE TABLE "Z_55USERTAGS" (
 ```sql
 CREATE TABLE Z_1BUDGETS (
     Z_1ACCOUNTS INTEGER,
-    Z_9BUDGETS INTEGER,
-    PRIMARY KEY (Z_1ACCOUNTS, Z_9BUDGETS)
+    Z_10BUDGETS INTEGER,
+    PRIMARY KEY (Z_1ACCOUNTS, Z_10BUDGETS)
 )
 ```
 
@@ -2558,8 +2601,8 @@ CREATE TABLE Z_1BUDGETS (
 ```sql
 CREATE TABLE Z_1DOWNLOADSESSIONS (
     Z_1ACCOUNTS1 INTEGER,
-    Z_30DOWNLOADSESSIONS INTEGER,
-    PRIMARY KEY (Z_1ACCOUNTS1, Z_30DOWNLOADSESSIONS)
+    Z_31DOWNLOADSESSIONS INTEGER,
+    PRIMARY KEY (Z_1ACCOUNTS1, Z_31DOWNLOADSESSIONS)
 )
 ```
 
@@ -2600,37 +2643,37 @@ CREATE TABLE Z_MODELCACHE (
 
 Core Data uses numbered join tables for many-to-many relationships. The numbers in table and column names correspond to `Z_ENT` values and **vary per database**.
 
-### Z_15USERTAGS
+### Z_16USERTAGS
 
 Links `CashFlowTransactionEntry` rows to `UserTag` rows (user-defined tags on transaction splits).
 
 ```sql
-CREATE TABLE "Z_15USERTAGS" (
-    Z_15CASHFLOWTRANSACTIONENTRIES INTEGER,
-    Z_76USERTAGS INTEGER,
-    PRIMARY KEY (Z_15CASHFLOWTRANSACTIONENTRIES, Z_76USERTAGS)
+CREATE TABLE "Z_16USERTAGS" (
+    Z_16CASHFLOWTRANSACTIONENTRIES INTEGER,
+    Z_77USERTAGS INTEGER,
+    PRIMARY KEY (Z_16CASHFLOWTRANSACTIONENTRIES, Z_77USERTAGS)
 )
 ```
 
 Column name mapping (for this particular database snapshot):
-- `Z_15CASHFLOWTRANSACTIONENTRIES` -- FK to `ZCASHFLOWTRANSACTIONENTRY.Z_PK`
-- `Z_76USERTAGS` -- FK to `ZTAG.Z_PK` where `Z_ENT` = UserTag
+- `Z_16CASHFLOWTRANSACTIONENTRIES` -- FK to `ZCASHFLOWTRANSACTIONENTRY.Z_PK`
+- `Z_77USERTAGS` -- FK to `ZTAG.Z_PK` where `Z_ENT` = UserTag
 
-### Z_55USERTAGS
+### Z_56USERTAGS
 
 Links `QuickFillRuleSplitEntry` rows to `UserTag` rows (tags on auto-fill rules).
 
 ```sql
-CREATE TABLE "Z_55USERTAGS" (
-    Z_55QUICKFILLRULESPLITENTRIES INTEGER,
-    Z_76USERTAGS1 INTEGER,
-    PRIMARY KEY (Z_55QUICKFILLRULESPLITENTRIES, Z_76USERTAGS1)
+CREATE TABLE "Z_56USERTAGS" (
+    Z_56QUICKFILLRULESPLITENTRIES INTEGER,
+    Z_77USERTAGS1 INTEGER,
+    PRIMARY KEY (Z_56QUICKFILLRULESPLITENTRIES, Z_77USERTAGS1)
 )
 ```
 
 Column name mapping:
-- `Z_55QUICKFILLRULESPLITENTRIES` -- FK to `ZQUICKFILLRULESPLITENTRY.Z_PK`
-- `Z_76USERTAGS1` -- FK to `ZTAG.Z_PK` where `Z_ENT` = UserTag
+- `Z_56QUICKFILLRULESPLITENTRIES` -- FK to `ZQUICKFILLRULESPLITENTRY.Z_PK`
+- `Z_77USERTAGS1` -- FK to `ZTAG.Z_PK` where `Z_ENT` = UserTag
 
 ### Z_1BUDGETS
 
@@ -2639,14 +2682,14 @@ Links `Account` rows to `Budget` rows (which accounts are included in which budg
 ```sql
 CREATE TABLE Z_1BUDGETS (
     Z_1ACCOUNTS INTEGER,
-    Z_9BUDGETS INTEGER,
-    PRIMARY KEY (Z_1ACCOUNTS, Z_9BUDGETS)
+    Z_10BUDGETS INTEGER,
+    PRIMARY KEY (Z_1ACCOUNTS, Z_10BUDGETS)
 )
 ```
 
 Column name mapping:
 - `Z_1ACCOUNTS` -- FK to `ZACCOUNT.Z_PK`
-- `Z_9BUDGETS` -- FK to `ZBUDGET.Z_PK`
+- `Z_10BUDGETS` -- FK to `ZBUDGET.Z_PK`
 
 ### Z_1DOWNLOADSESSIONS
 
@@ -2655,24 +2698,25 @@ Links `Account` rows to `DownloadSession` rows (which accounts participated in a
 ```sql
 CREATE TABLE Z_1DOWNLOADSESSIONS (
     Z_1ACCOUNTS1 INTEGER,
-    Z_30DOWNLOADSESSIONS INTEGER,
-    PRIMARY KEY (Z_1ACCOUNTS1, Z_30DOWNLOADSESSIONS)
+    Z_31DOWNLOADSESSIONS INTEGER,
+    PRIMARY KEY (Z_1ACCOUNTS1, Z_31DOWNLOADSESSIONS)
 )
 ```
 
 Column name mapping:
 - `Z_1ACCOUNTS1` -- FK to `ZACCOUNT.Z_PK`
-- `Z_30DOWNLOADSESSIONS` -- FK to `ZDOWNLOADSESSION.Z_PK`
+- `Z_31DOWNLOADSESSIONS` -- FK to `ZDOWNLOADSESSION.Z_PK`
 
 ---
 
 ## Indexes
 
-All 251 indexes, grouped by table. Core Data creates both FK-based relationship indexes (`ZTABLE_ZCOLUMN_INDEX`) and semantic indexes (`Z_EntityName_propertyName`).
+All 258 indexes, grouped by table. Core Data creates both FK-based relationship indexes (`ZTABLE_ZCOLUMN_INDEX`) and semantic indexes (`Z_EntityName_propertyName`).
 
 
 **ZACCOUNT**
 
+- `ZACCOUNT_ZACCOUNTGROUP_INDEX` on `ZACCOUNTGROUP`
 - `ZACCOUNT_ZBILLPAYFUNDINGACCOUNT_INDEX` on `ZBILLPAYFUNDINGACCOUNT`
 - `ZACCOUNT_ZBILLPAYPROVIDERINSTITUTION_INDEX` on `ZBILLPAYPROVIDERINSTITUTION`
 - `ZACCOUNT_ZBPSACCOUNT_INDEX` on `ZBPSACCOUNT`
@@ -2682,6 +2726,10 @@ All 251 indexes, grouped by table. Core Data creates both FK-based relationship 
 - `ZACCOUNT_ZLOANINTERESTCATEGORY_INDEX` on `ZLOANINTERESTCATEGORY`
 - `ZACCOUNT_ZLOANSMARTTRANSACTION_INDEX` on `ZLOANSMARTTRANSACTION`
 - `ZACCOUNT_ZPRIMARYUSEBUSINESS_INDEX` on `ZPRIMARYUSEBUSINESS`
+
+**ZACCOUNTGROUP**
+
+- `ZACCOUNTGROUP_ZSMARTREGISTER_INDEX` on `ZSMARTREGISTER`
 
 **ZACCOUNTINGRECORD**
 
@@ -3012,6 +3060,10 @@ All 251 indexes, grouped by table. Core Data creates both FK-based relationship 
 - `Z_SecuritySplit_security_splitDate` on `(ZSECURITY, ZSPLITDATE)`
 - `Z_SecuritySplit_splitDate` on `ZSPLITDATE`
 
+**ZSMARTREGISTER**
+
+- `ZSMARTREGISTER_ZACCOUNTGROUP_INDEX` on `ZACCOUNTGROUP`
+
 **ZTAG**
 
 - `ZTAG_ZPARENTCATEGORY_INDEX` on `ZPARENTCATEGORY`
@@ -3058,7 +3110,7 @@ All 251 indexes, grouped by table. Core Data creates both FK-based relationship 
 
 - `ZUSERPAYEEADDRESS_ZUSERPAYEE_INDEX` on `ZUSERPAYEE`
 
-The join tables (`Z_15USERTAGS`, `Z_55USERTAGS`, `Z_1BUDGETS`, `Z_1DOWNLOADSESSIONS`) each have multiple indexes with historically-numbered names reflecting Core Data model version migrations. All resolve to the same two-column composite on the current physical table.
+The join tables (`Z_16USERTAGS`, `Z_56USERTAGS`, `Z_1BUDGETS`, `Z_1DOWNLOADSESSIONS`) each have multiple indexes with historically-numbered names reflecting Core Data model version migrations. All resolve to the same two-column composite on the current physical table.
 
 ---
 
@@ -3194,9 +3246,18 @@ Core Data uses **single-table inheritance** for several entity hierarchies. The 
 | `ZTRANSACTION` | Transaction, CashFlowTransaction, SmartCashFlowTransaction, InvestmentTransaction | Investment-specific columns (`ZUNITS`, `ZCOMMISSION`, `ZPLACEHOLDERCOSTBASISUNITS`, etc.) are NULL for cash flow rows. Per-unit price is not stored directly — derive it from `ZAMOUNT` ÷ `ZUNITS`, or look up `ZSECURITYQUOTE.ZCLOSINGPRICE` for the trade date. |
 | `ZTAG` | Tag, CategoryTag, UserTag, CashFlowTag | Filter on Z_ENT to get only categories vs. user tags |
 
-### Z79_PARENT Artifact
+### Z79_PARENT Companion Column
 
-The `ZTAG` table contains a column `Z79_PARENT` alongside `ZPARENTCATEGORY`. This is a Core Data artifact from model migrations -- the `79` in `Z79_PARENT` references a historical `Z_ENT` value for the `CategoryTag` entity. In practice, use `ZPARENTCATEGORY` for the parent-child category relationship.
+`ZCASHFLOWTRANSACTIONENTRY` has a column `Z79_PARENT` alongside `ZPARENT`. `ZPARENT` is the FK to `ZTRANSACTION.Z_PK`; `Z79_PARENT` holds the `Z_ENT` of that parent row (CashFlowTransaction or InvestmentTransaction), which Core Data stores because the relationship targets an entity with subentities. The `79` is the `Z_ENT` of the abstract `Transaction` entity, so the column name can change when entity numbers shift. Join on `ZPARENT` and ignore the companion column. The `Z79_TRANSACTION` and `Z80_TRANSACTION` columns on other tables follow the same pattern.
+
+### Entity Numbers Shift Between Quicken Versions
+
+Adding or removing an entity renumbers every entity after it alphabetically, and the numbers are baked into join-table and companion-column names. Differences between the previous capture of this document (Quicken 8.5) and this one (9.3.1):
+
+- **Renumbered join tables**: `Z_15USERTAGS` is now `Z_16USERTAGS` (columns `Z_16CASHFLOWTRANSACTIONENTRIES`, `Z_77USERTAGS`), `Z_55USERTAGS` is now `Z_56USERTAGS`, and the entity-numbered columns of `Z_1BUDGETS` and `Z_1DOWNLOADSESSIONS` moved up by one. Discover these names from `Z_PRIMARYKEY` and `sqlite_master`; never hardcode them.
+- **Added**: the `AccountGroup` entity and `ZACCOUNTGROUP` table, with `ZACCOUNT.ZACCOUNTGROUP` and `ZSMARTREGISTER.ZACCOUNTGROUP` pointing at it; per-asset-type cost-basis settings for ETFs, crypto and commodities on `ZACCOUNT`; `ZSECURITY.ZCURRENCY`; recurring-invoice columns on `ZINVOICE`; `ZTRANSACTION.ZAUTOUPDATEEBILLDATE`.
+- **Removed**: the `TaxLineItem` entity and `ZTAXLINEITEM` table, and `ZSALESTAXRATE.ZTAXAGENCYNAME`.
+- **Budget rollover moved**: `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT` are gone; `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE` replace them. The meaning of the `ZROLLOVERMODE` values has not been verified against the Quicken UI.
 
 ### Signed Amounts
 
@@ -3224,7 +3285,7 @@ The `ZACCOUNT.ZTYPENAME` column stores account types as **uppercase strings**:
 The `ZTAG` table serves triple duty:
 
 1. **CategoryTag** -- income/expense categories (Groceries, Rent, Salary). Has parent-child hierarchy via `ZPARENTCATEGORY`.
-2. **UserTag** -- user-created freeform tags. Linked to transactions via the `Z_15USERTAGS` join table.
+2. **UserTag** -- user-created freeform tags. Linked to transactions via the `Z_16USERTAGS` join table.
 3. **CashFlowTag** -- system-internal tags for cash flow classification.
 
 Always filter on `Z_ENT` (looked up from `Z_PRIMARYKEY`) when querying `ZTAG` to avoid mixing entity types.

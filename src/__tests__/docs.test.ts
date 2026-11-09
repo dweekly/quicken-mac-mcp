@@ -89,14 +89,15 @@ afterAll(() => {
 // templates etc.) and should not be cross-checked against the schema.
 const PROSE_PLACEHOLDERS = new Set(["ZTABLE_ZCOLUMN_INDEX"]);
 
-// Tokens that are part of the broader Quicken schema (e.g. version-dependent
-// features like tax-reporting/small business tables) but might not be physically
-// present in every live database instance.
+// Tokens the docs name on purpose that exist only in some Quicken versions
+// (removed after 8.5, or added by 9.3), so no single live database has them all.
 const VERSION_DEPENDENT_TOKENS = new Set([
   "ZTAXAGENCYNAME",
   "ZTAXLINEITEM",
-  "ZFORM",
-  "ZLINENUMBER",
+  "ZROLLOVER",
+  "ZROLLOVERRESETAMT",
+  "ZROLLOVERMODE",
+  "ZROLLOVEROVERRIDE",
 ]);
 
 function extractZTokens(text: string): Set<string> {
