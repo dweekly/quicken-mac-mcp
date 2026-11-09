@@ -19,6 +19,17 @@ npm run format    # prettier
 npm run dev       # run server locally via tsx
 ```
 
+## After a Quicken update
+
+Quicken changes its database layout between releases. With Quicken open on a data file:
+
+```bash
+QUICKEN_DB_PATH=~/Documents/YourFile.quicken/data npm run schema:check    # does docs/schema.md still match?
+QUICKEN_DB_PATH=~/Documents/YourFile.quicken/data npm run schema:refresh  # rewrite the generated parts
+```
+
+`schema:refresh` rewrites every `CREATE TABLE` block, the index list, and the capture line in `docs/schema.md`. It lists what it cannot write for you: new tables and entities that need a section, and documented ones that no longer exist. `npm test` runs the same check against a live file when one is available, so drift fails the live suite. A file from an older Quicken than the capture is reported as skipped, not as drift. Then add the new layout to `QUICKEN_LAYOUTS` in `src/__tests__/fixtures/quicken.ts` if the change affects anything the server or skill touches.
+
 ## Submitting changes
 
 1. Fork the repo and create a branch from `main`.

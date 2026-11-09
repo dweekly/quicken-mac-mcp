@@ -6,6 +6,10 @@
 
 - The budgets skill recipe no longer selects rollover columns that current Quicken no longer has (`ZBUDGETLINEITEM.ZROLLOVER`, `ZBUDGETTARGET.ZROLLOVERRESETAMT`); it now explains how to find the rollover columns for the installed version.
 
+### Added
+
+- `npm run schema:check` and `npm run schema:refresh` compare `docs/schema.md` with an open Quicken file and rewrite its generated parts, so a Quicken update that changes the database layout is caught by the live test suite instead of going unnoticed.
+
 ### Changed
 
 - `docs/schema.md` is recaptured from Quicken 9.3.1: renumbered join tables (`Z_16USERTAGS`, `Z_56USERTAGS`), the new `ZACCOUNTGROUP` table, removed `ZTAXLINEITEM`, and new columns. It also corrects the description of the `Z79_PARENT` column.
