@@ -12,7 +12,7 @@
 
 ### Security
 
-- Updated transitive dependencies to clear 15 `npm audit` advisories, and declared `zod` as a direct dependency at 4.6.7 (it was previously used without being declared, resolving to a 3.x release with a memory-exhaustion advisory). Shipped dependencies now audit clean.
+- Updated transitive dependencies to clear 15 `npm audit` advisories, and declared `zod` as a direct dependency at 4.6.7 (it was previously used without being declared, resolving to a 3.x release with a memory-exhaustion advisory). Three `overrides` force patched `minimatch`, `zod` and `tmp` into development tooling that still pins vulnerable versions. `npm audit` now reports no advisories.
 
 ## 1.6.0
 

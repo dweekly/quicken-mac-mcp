@@ -68,6 +68,10 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "tmp": "^0.2.7"
+    "minimatch": "^11.0.5",
+    "tmp": "^0.2.7",
+    "@anthropic-ai/mcpb": {
+      "zod": "^4.6.7"
+    }
   }
 }
