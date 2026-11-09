@@ -2,12 +2,61 @@ import Database from "better-sqlite3";
 import { isoToCoreData } from "../../db.js";
 
 /**
+ * The parts of Quicken's physical schema that differ between releases and that
+ * the server, the skill recipes, or the skill helper have to cope with. Entity
+ * numbers are the real ones from each release, so the join-table names match
+ * what a user's file contains.
+ */
+export interface QuickenLayout {
+  label: string;
+  entryEntity: number;
+  categoryTagEntity: number;
+  userTagEntity: number;
+  /** Budget rollover lives on the line item (8.5) or only on the target (9.3). */
+  rollover: "line-item-and-reset" | "target-mode-and-override";
+  hasAccountGroup: boolean;
+}
+
+export const QUICKEN_8_5: QuickenLayout = {
+  label: "Quicken 8.5 layout",
+  entryEntity: 15,
+  categoryTagEntity: 75,
+  userTagEntity: 76,
+  rollover: "line-item-and-reset",
+  hasAccountGroup: false,
+};
+
+export const QUICKEN_9_3: QuickenLayout = {
+  label: "Quicken 9.3.1 layout",
+  entryEntity: 16,
+  categoryTagEntity: 76,
+  userTagEntity: 77,
+  rollover: "target-mode-and-override",
+  hasAccountGroup: true,
+};
+
+export const QUICKEN_LAYOUTS = [QUICKEN_8_5, QUICKEN_9_3];
+
+export function userTagJoin(layout: QuickenLayout) {
+  return {
+    table: `Z_${layout.entryEntity}USERTAGS`,
+    entry_column: `Z_${layout.entryEntity}CASHFLOWTRANSACTIONENTRIES`,
+    user_tag_column: `Z_${layout.userTagEntity}USERTAGS`,
+  };
+}
+
+/**
  * Build a small, synthetic Quicken-shaped database for deterministic tests.
  * It contains no user data and intentionally includes split, transfer,
  * report-excluded, cash-account, and end-date edge cases.
  */
-export function createSyntheticQuickenDb(filename = ":memory:"): Database.Database {
+export function createSyntheticQuickenDb(
+  filename = ":memory:",
+  layout: QuickenLayout = QUICKEN_9_3
+): Database.Database {
   const db = new Database(filename);
+  const join = userTagJoin(layout);
+  const oldRollover = layout.rollover === "line-item-and-reset";
 
   db.exec(`
     CREATE TABLE Z_METADATA (Z_VERSION INTEGER);
@@ -99,7 +148,7 @@ export function createSyntheticQuickenDb(filename = ":memory:"): Database.Databa
       ZCATEGORYTAG INTEGER,
       ZACCOUNT INTEGER,
       ZISTRANSFEROUT INTEGER,
-      ZROLLOVER INTEGER,
+      ${oldRollover ? "ZROLLOVER INTEGER," : ""}
       ZTYPE INTEGER
     );
     CREATE TABLE ZBUDGETTARGET (
@@ -107,7 +156,7 @@ export function createSyntheticQuickenDb(filename = ":memory:"): Database.Databa
       ZLINEITEM INTEGER,
       ZEFFECTIVEDATENUM INTEGER,
       ZAMOUNT REAL,
-      ZROLLOVERRESETAMT REAL
+      ${oldRollover ? "ZROLLOVERRESETAMT REAL" : "ZROLLOVERMODE INTEGER, ZROLLOVEROVERRIDE REAL"}
     );
     CREATE TABLE ZQUICKFILLRULE (
       Z_PK INTEGER PRIMARY KEY,
@@ -128,10 +177,15 @@ export function createSyntheticQuickenDb(filename = ":memory:"): Database.Databa
       ZAMOUNT REAL,
       ZMEMO TEXT
     );
-    CREATE TABLE Z_15USERTAGS (
-      Z_15CASHFLOWTRANSACTIONENTRIES INTEGER,
-      Z_76USERTAGS INTEGER
+    CREATE TABLE ${join.table} (
+      ${join.entry_column} INTEGER,
+      ${join.user_tag_column} INTEGER
     );
+    ${
+      layout.hasAccountGroup
+        ? "CREATE TABLE ZACCOUNTGROUP (Z_PK INTEGER PRIMARY KEY, ZNAME TEXT, ZSEPARATE INTEGER);"
+        : ""
+    }
   `);
 
   const noon = (date: string) => isoToCoreData(`${date}T12:00:00Z`);
@@ -139,9 +193,9 @@ export function createSyntheticQuickenDb(filename = ":memory:"): Database.Databa
 
   db.prepare("INSERT INTO Z_METADATA VALUES (?)").run(1);
   const insertEntity = db.prepare("INSERT INTO Z_PRIMARYKEY VALUES (?, ?)");
-  insertEntity.run("CashFlowTransactionEntry", 15);
-  insertEntity.run("UserTag", 76);
-  insertEntity.run("CategoryTag", 79);
+  insertEntity.run("CashFlowTransactionEntry", layout.entryEntity);
+  insertEntity.run("UserTag", layout.userTagEntity);
+  insertEntity.run("CategoryTag", layout.categoryTagEntity);
 
   const insertAccount = db.prepare(
     "INSERT INTO ZACCOUNT VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -173,10 +227,10 @@ export function createSyntheticQuickenDb(filename = ":memory:"): Database.Databa
   db.exec(`
     INSERT INTO ZUSERPAYEE VALUES (1, 'Merchant'), (2, 'Transfer');
     INSERT INTO ZTAG VALUES
-      (10, 79, 'Food', NULL),
-      (11, 79, 'Groceries', 10),
-      (12, 79, 'Dining', 10),
-      (20, 76, 'Reviewed', NULL);
+      (10, ${layout.categoryTagEntity}, 'Food', NULL),
+      (11, ${layout.categoryTagEntity}, 'Groceries', 10),
+      (12, ${layout.categoryTagEntity}, 'Dining', 10),
+      (20, ${layout.userTagEntity}, 'Reviewed', NULL);
   `);
 
   const insertTransaction = db.prepare(
@@ -214,11 +268,11 @@ export function createSyntheticQuickenDb(filename = ":memory:"): Database.Databa
     INSERT INTO ZLOT VALUES (1, 1, 2, 150);
     INSERT INTO ZSECURITYQUOTE VALUES (1, 1, 100, ${noon("2024-01-31")});
     INSERT INTO ZBUDGET VALUES (1, 'Household', 'USD', 1, 1, 0);
-    INSERT INTO ZBUDGETLINEITEM VALUES (1, 1, 11, NULL, 0, 0, 0);
-    INSERT INTO ZBUDGETTARGET VALUES (1, 1, 202401, 500, 0);
+    INSERT INTO ZBUDGETLINEITEM VALUES (1, 1, 11, NULL, 0, ${oldRollover ? "0, " : ""}0);
+    INSERT INTO ZBUDGETTARGET VALUES (1, 1, 202401, 500, ${oldRollover ? "0" : "0, NULL"});
     INSERT INTO ZQUICKFILLRULE VALUES (1, 'Merchant', 0, NULL, NULL, 0, 1, 0, ${noon("2024-01-31")});
     INSERT INTO ZQUICKFILLRULESPLITENTRY VALUES (1, 1, 1, 11, NULL, NULL);
-    INSERT INTO Z_15USERTAGS VALUES (1000, 20);
+    INSERT INTO ${join.table} VALUES (1000, 20);
   `);
 
   return db;

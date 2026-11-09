@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type Database from "better-sqlite3";
-import { createSyntheticQuickenDb } from "./fixtures/quicken.js";
+import { createSyntheticQuickenDb, QUICKEN_LAYOUTS } from "./fixtures/quicken.js";
 import { queryTransactions } from "../tools/query-transactions.js";
 import { spendingByCategory } from "../tools/spending-by-category.js";
 import { spendingOverTime } from "../tools/spending-over-time.js";
 import { toolsRegistry } from "../tools/registry.js";
 
-describe("spending tool correctness", () => {
+describe.each(QUICKEN_LAYOUTS)("spending tool correctness ($label)", (layout) => {
   let db: Database.Database;
 
   beforeEach(() => {
-    db = createSyntheticQuickenDb();
+    db = createSyntheticQuickenDb(":memory:", layout);
   });
 
   afterEach(() => {

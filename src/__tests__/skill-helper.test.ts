@@ -4,21 +4,26 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import Database from "better-sqlite3";
-import { createSyntheticQuickenDb } from "./fixtures/quicken.js";
+import {
+  createSyntheticQuickenDb,
+  QUICKEN_LAYOUTS,
+  userTagJoin,
+} from "./fixtures/quicken.js";
 
 const ROOT = resolve(__dirname, "..", "..");
 const SCRIPT = join(ROOT, "plugin/skills/quicken/scripts/quicken_db.py");
 const VENV_PYTHON = join(ROOT, ".venv/bin/python");
 const PYTHON = existsSync(VENV_PYTHON) ? VENV_PYTHON : "python3";
 
-describe("quicken_db.py user-tag-schema", () => {
+describe.each(QUICKEN_LAYOUTS)("quicken_db.py user-tag-schema ($label)", (layout) => {
+  const tagJoin = userTagJoin(layout);
   let directory: string;
   let databasePath: string;
 
   beforeEach(() => {
     directory = mkdtempSync(join(tmpdir(), "quicken-synthetic-"));
     databasePath = join(directory, "data.sqlite");
-    const fixture = createSyntheticQuickenDb(databasePath);
+    const fixture = createSyntheticQuickenDb(databasePath, layout);
     fixture.close();
   });
 
@@ -36,18 +41,14 @@ describe("quicken_db.py user-tag-schema", () => {
     const result = discover();
     expect(result.status, result.stderr).toBe(0);
     const payload = JSON.parse(result.stdout);
-    expect(payload.matches).toEqual([
-      {
-        table: "Z_15USERTAGS",
-        entry_column: "Z_15CASHFLOWTRANSACTIONENTRIES",
-        user_tag_column: "Z_76USERTAGS",
-      },
-    ]);
+    expect(payload.matches).toEqual([tagJoin]);
+    expect(payload.entry_entity_id).toBe(layout.entryEntity);
+    expect(payload.user_tag_entity_id).toBe(layout.userTagEntity);
   });
 
   it("fails when no join mapping exists", () => {
     const db = new Database(databasePath);
-    db.exec("DROP TABLE Z_15USERTAGS");
+    db.exec(`DROP TABLE ${tagJoin.table}`);
     db.close();
 
     const result = discover();
@@ -60,9 +61,7 @@ describe("quicken_db.py user-tag-schema", () => {
 
   it("fails instead of choosing the first ambiguous join column", () => {
     const db = new Database(databasePath);
-    db.exec(
-      "ALTER TABLE Z_15USERTAGS ADD COLUMN Z_15CASHFLOWTRANSACTIONENTRIES1 INTEGER"
-    );
+    db.exec(`ALTER TABLE ${tagJoin.table} ADD COLUMN ${tagJoin.entry_column}1 INTEGER`);
     db.close();
 
     const result = discover();

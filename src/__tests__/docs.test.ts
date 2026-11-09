@@ -19,7 +19,7 @@ import Database from "better-sqlite3";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { createSyntheticQuickenDb } from "./fixtures/quicken.js";
+import { createSyntheticQuickenDb, QUICKEN_LAYOUTS } from "./fixtures/quicken.js";
 import { resolveLiveQuickenDb } from "./fixtures/live-quicken.js";
 
 const DB_PATH = resolveLiveQuickenDb("docs.test.ts", ["ZTRANSACTION"]);
@@ -166,24 +166,31 @@ function sqlExecutionFailures(
   return failures;
 }
 
-describe("docs cross-check: synthetic SQL execution", () => {
-  it("resolves identifiers and runs every skill SQL recipe without a live file", () => {
-    const fixture = createSyntheticQuickenDb();
-    try {
-      const fixtureIdentifiers = collectKnownIdentifiers(fixture);
-      const unknown = SKILL_DOCS.flatMap((docPath) => {
-        const tokens = extractZTokens(readFileSync(join(REPO_ROOT, docPath), "utf8"));
-        return [...tokens].filter((token) => !fixtureIdentifiers.has(token));
-      });
-      expect([...new Set(unknown)], "Unknown synthetic-fixture Z-tokens").toEqual([]);
+describe.each(QUICKEN_LAYOUTS)(
+  "docs cross-check: synthetic SQL execution ($label)",
+  (layout) => {
+    it("resolves identifiers and runs every skill SQL recipe without a live file", () => {
+      const fixture = createSyntheticQuickenDb(":memory:", layout);
+      try {
+        const fixtureIdentifiers = collectKnownIdentifiers(fixture);
+        const unknown = SKILL_DOCS.flatMap((docPath) => {
+          const tokens = extractZTokens(readFileSync(join(REPO_ROOT, docPath), "utf8"));
+          return [...tokens].filter((token) => !fixtureIdentifiers.has(token));
+        });
+        expect([...new Set(unknown)], "Unknown synthetic-fixture Z-tokens").toEqual([]);
 
-      const failures = sqlExecutionFailures(fixture, SKILL_DOCS, 79);
-      expect(failures, `SQL execution failures:\n${failures.join("\n")}`).toEqual([]);
-    } finally {
-      fixture.close();
-    }
-  });
-});
+        const failures = sqlExecutionFailures(
+          fixture,
+          SKILL_DOCS,
+          layout.categoryTagEntity
+        );
+        expect(failures, `SQL execution failures:\n${failures.join("\n")}`).toEqual([]);
+      } finally {
+        fixture.close();
+      }
+    });
+  }
+);
 
 describeWithDb("docs cross-check: Z-token resolution", () => {
   for (const docPath of DOCS) {
