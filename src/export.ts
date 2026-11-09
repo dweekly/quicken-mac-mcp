@@ -8,6 +8,7 @@
 import { existsSync, unlinkSync } from "node:fs";
 import Database from "better-sqlite3";
 import { openDatabase, CORE_DATA_EPOCH_OFFSET, getCategoryTagEntityId } from "./db.js";
+import { OPEN_LOT_FILTER } from "./tools/list-portfolio.js";
 
 /** Convert a Core Data timestamp to ISO 8601 date string, or null. */
 function toIsoDate(ts: number | null | undefined): string | null {
@@ -371,7 +372,7 @@ function exportHoldings(src: Database.Database, out: Database.Database): number 
     JOIN ZPOSITION p ON l.ZPOSITION = p.Z_PK
     JOIN ZSECURITY s ON p.ZSECURITY = s.Z_PK
     JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK
-    WHERE l.ZLATESTUNITS > 0
+    WHERE ${OPEN_LOT_FILTER}
     GROUP BY a.ZNAME, s.ZNAME, s.ZTICKER
     ORDER BY a.ZNAME, s.ZNAME
   `
