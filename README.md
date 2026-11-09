@@ -222,7 +222,7 @@ docker run --rm -v ~/Documents/YourFile.quicken:/data:ro quicken-mac-mcp
 
 Every Markdown document in this repo, with what would make it worth revisiting.
 
-- [Schema reference](docs/schema.md): every table, column, index, entity and join table in the Quicken For Mac database, with the conventions needed to query it. (updated 2026-11-09; update when: a Quicken release changes the database layout)
+- [Schema reference](docs/schema.md): every table, column, index, entity and join table in the Quicken For Mac database, with the conventions needed to query it. (updated 2026-11-09; update when: a Quicken release changes the database layout, which `npm run schema:check` reports)
 - [Quicken skill](plugin/skills/quicken/SKILL.md): the Claude skill's entry point: how to find and open the database safely and which reference to load for a question. (updated 2026-08-13; update when: a reference file is added or removed, or the safe-access steps change)
 - [Balances reference](plugin/skills/quicken/references/balances.md): skill recipes for account balances and how fresh they are. (updated 2026-08-13; update when: Quicken changes where it stores institution balances or statements)
 - [Budgets reference](plugin/skills/quicken/references/budgets.md): skill recipes for budgets, line items and targets. (updated 2026-11-09; update when: budget tables change, or the stored rollover mode values are verified)
@@ -230,8 +230,8 @@ Every Markdown document in this repo, with what would make it worth revisiting.
 - [Investments reference](plugin/skills/quicken/references/investments.md): skill recipes for holdings, tax lots and cost basis. (updated 2026-08-13; update when: position, lot or quote tables change)
 - [Tags and rules reference](plugin/skills/quicken/references/tags-and-rules.md): skill recipes for user tags and QuickFill rules, including how to discover the tag join table. (updated 2026-08-13; update when: Quicken changes how tags are joined to transaction splits)
 - [Changelog](CHANGELOG.md): user-visible changes by release. (updated 2026-11-09; update when: a change that users of the tools, CLI or skill would notice is merged)
-- [Roadmap](ROADMAP.md): known issues, planned work and deliberately deferred upgrades. (updated 2026-08-14; update when: a known gap is found, fixed or reprioritized)
-- [Contributing](CONTRIBUTING.md): how to set up, test, version and submit changes. (updated 2026-08-14; update when: the build, test or release commands change)
+- [Roadmap](ROADMAP.md): known issues, planned work and deliberately deferred upgrades. (updated 2026-11-09; update when: a known gap is found, fixed or reprioritized)
+- [Contributing](CONTRIBUTING.md): how to set up, test, version and submit changes, and what to do after a Quicken update. (updated 2026-11-09; update when: the build, test, schema-refresh or release commands change)
 - [Developer guidelines for Claude](CLAUDE.md): build commands and code rules for AI coding agents working in this repo. (updated 2026-05-30; update when: commands, code style or the read-only database rule change)
 - [Security policy](SECURITY.md): the read-only design principles, supported versions and how to report a vulnerability. (updated 2026-03-02; update when: the reporting contact or supported versions change)
 - [Code of conduct](CODE_OF_CONDUCT.md): expected behavior for participants. (updated 2026-03-02; update when: the maintainers adopt a different code or contact)
