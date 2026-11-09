@@ -15,11 +15,17 @@ blocking the release in flight. Fresh as of 2026-11-09.
 
 ## Deferred dependency work
 
-- Major upgrades for `@types/node` and `typescript` were intentionally deferred
-  from 1.6.0. Land them in a separate compatibility-focused change.
 - The Intel Claude Desktop bundle built with `better-sqlite3` 13 has not been run:
   the release workflow checks that it contains the x86_64 addon, but nobody has
   loaded it on an Intel Mac. Confirm on the first release after the upgrade.
+- `typescript` 7: compiles this code, but `typescript-eslint` 8 refuses to run on it
+  ("does not support TS 7.0"); support is expected once TypeScript 7.1 ships an API.
+  Revisit then. Microsoft's side-by-side setup (`typescript` aliased to
+  `@typescript/typescript6`, `@typescript/native` aliased to TypeScript 7) was tried
+  on 2026-11-09 and builds, lints and passes the synthetic tests, but was not adopted:
+  build speed is not a problem at this size.
+- `@types/node` stays on 22 on purpose: it should match the lowest Node version in
+  `engines`, not the newest release. Move both together when Node 22 support is dropped.
 - `package.json` carries three `overrides` that force patched versions into
   development-only tooling whose own releases still pin vulnerable ones: `minimatch`
   11 under `eslint` / `typescript-eslint`, and `zod` 4 and `tmp` 0.2.7 under
