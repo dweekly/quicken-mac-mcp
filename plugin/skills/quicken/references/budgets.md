@@ -50,6 +50,6 @@ ORDER BY b.ZNAME,
 - Keep each budget's currency separate.
 - Distinguish category line items, account-specific line items, and transfer-out line items.
 - Do not convert `ZEFFECTIVEDATENUM` by guessing. Inspect its distinct values, compare a few targets with the Quicken UI, and document the mapping used for that file.
-- Expose rollover behavior separately from the base target amount. Rollover columns differ by Quicken version, so the query above omits them: run `PRAGMA table_info(ZBUDGETLINEITEM)` and `PRAGMA table_info(ZBUDGETTARGET)` and add whichever exist. Quicken 9.3 has `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE`; earlier versions had `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT`. Compare a few targets with the Quicken UI before interpreting `ZROLLOVERMODE` values.
+- Expose rollover behavior separately from the base target amount. Rollover columns differ by Quicken version, so the query above omits them: run `PRAGMA table_info(ZBUDGETLINEITEM)` and `PRAGMA table_info(ZBUDGETTARGET)` and add whichever exist. Quicken 9.3 has `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE`; Quicken 8.5 had `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT`. Compare a few targets with the Quicken UI before interpreting `ZROLLOVERMODE` values.
 - Do not infer that a non-zero deletion counter always means a tombstone without validating representative records.
 - When comparing budget to actual spending, reuse the transfer, account, currency, date, and uncategorized rules from `cash-flow.md`.

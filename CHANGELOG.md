@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- The budgets skill recipe no longer selects rollover columns that Quicken 9.3 removed (`ZBUDGETLINEITEM.ZROLLOVER`, `ZBUDGETTARGET.ZROLLOVERRESETAMT`); it now explains how to find the rollover columns for the installed version.
+- The budgets skill recipe no longer selects rollover columns that current Quicken no longer has (`ZBUDGETLINEITEM.ZROLLOVER`, `ZBUDGETTARGET.ZROLLOVERRESETAMT`); it now explains how to find the rollover columns for the installed version.
 
 ### Changed
 

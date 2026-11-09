@@ -3256,8 +3256,10 @@ Adding or removing an entity renumbers every entity after it alphabetically, and
 
 - **Renumbered join tables**: `Z_15USERTAGS` is now `Z_16USERTAGS` (columns `Z_16CASHFLOWTRANSACTIONENTRIES`, `Z_77USERTAGS`), `Z_55USERTAGS` is now `Z_56USERTAGS`, and the entity-numbered columns of `Z_1BUDGETS` and `Z_1DOWNLOADSESSIONS` moved up by one. Discover these names from `Z_PRIMARYKEY` and `sqlite_master`; never hardcode them.
 - **Added**: the `AccountGroup` entity and `ZACCOUNTGROUP` table, with `ZACCOUNT.ZACCOUNTGROUP` and `ZSMARTREGISTER.ZACCOUNTGROUP` pointing at it; per-asset-type cost-basis settings for ETFs, crypto and commodities on `ZACCOUNT`; `ZSECURITY.ZCURRENCY`; recurring-invoice columns on `ZINVOICE`; `ZTRANSACTION.ZAUTOUPDATEEBILLDATE`.
-- **Removed**: the `TaxLineItem` entity and `ZTAXLINEITEM` table, and `ZSALESTAXRATE.ZTAXAGENCYNAME`.
-- **Budget rollover moved**: `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT` are gone; `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE` replace them. The meaning of the `ZROLLOVERMODE` values has not been verified against the Quicken UI.
+- **Removed, not moved**: the `TaxLineItem` entity and `ZTAXLINEITEM` table, and `ZSALESTAXRATE.ZTAXAGENCYNAME`. No table or column elsewhere took their place: tax-line mapping was already on `ZTAG` (`ZTAXREFUS`, `ZTAXREFCA`) and the agency was already reachable through `ZSALESTAXRATE.ZSALESTAXAGENCY`.
+- **Budget rollover moved**: `ZBUDGETLINEITEM.ZROLLOVER` and `ZBUDGETTARGET.ZROLLOVERRESETAMT` are gone; `ZBUDGETTARGET.ZROLLOVERMODE` and `ZBUDGETTARGET.ZROLLOVEROVERRIDE` replace them. Whether Quicken carried old rollover settings into the new columns, and what the `ZROLLOVERMODE` values mean, has not been verified against the Quicken UI.
+
+These changes did not all arrive in one release. Quicken ships every historical version of its Core Data model inside the app (`QFramework.framework/Resources/ModelBundle.momd`), and searching those files for the entity and attribute names dates each change by model version: the tax items are in versions 7 through 83 and absent from 84 on; `rollover` and `rolloverResetAmt` are last present in version 85 and `rolloverMode` first appears in 86; `rolloverOverride` and `AccountGroup` first appear in version 87. Quicken 9.3.1 uses version 88. Which Quicken release shipped each model version is not recorded here.
 
 ### Signed Amounts
 
