@@ -4,7 +4,12 @@
 
 ### Fixed
 
+- `list_portfolio`, `quicken-mac-mcp export` and the CSV exporter dropped short positions because they kept only lots with positive units. Short positions now appear with negative shares, matching the skill's holdings recipe.
 - The budgets skill recipe no longer selects rollover columns that current Quicken no longer has (`ZBUDGETLINEITEM.ZROLLOVER`, `ZBUDGETTARGET.ZROLLOVERRESETAMT`); it now explains how to find the rollover columns for the installed version.
+
+### Added
+
+- `list_portfolio` reports each security's currency when the Quicken file records one (`ZSECURITY.ZCURRENCY`, present in current Quicken, absent in 8.5).
 
 ### Changed
 

@@ -294,7 +294,7 @@ def run_sovereign_export(output_dir):
         JOIN ZPOSITION p ON l.ZPOSITION = p.Z_PK
         JOIN ZSECURITY sec ON p.ZSECURITY = sec.Z_PK
         JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK
-        WHERE l.ZLATESTUNITS > 0
+        WHERE ABS(COALESCE(l.ZLATESTUNITS, 0)) > 0.000000001
         GROUP BY account_name, security_name, ticker
         ORDER BY account_name, security_name
     """

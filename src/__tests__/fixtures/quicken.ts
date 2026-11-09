@@ -15,6 +15,7 @@ export interface QuickenLayout {
   /** Budget rollover lives on the line item (8.5) or only on the target (9.3). */
   rollover: "line-item-and-reset" | "target-mode-and-override";
   hasAccountGroup: boolean;
+  hasSecurityCurrency: boolean;
 }
 
 export const QUICKEN_8_5: QuickenLayout = {
@@ -24,6 +25,7 @@ export const QUICKEN_8_5: QuickenLayout = {
   userTagEntity: 76,
   rollover: "line-item-and-reset",
   hasAccountGroup: false,
+  hasSecurityCurrency: false,
 };
 
 export const QUICKEN_9_3: QuickenLayout = {
@@ -33,6 +35,7 @@ export const QUICKEN_9_3: QuickenLayout = {
   userTagEntity: 77,
   rollover: "target-mode-and-override",
   hasAccountGroup: true,
+  hasSecurityCurrency: true,
 };
 
 export const QUICKEN_LAYOUTS = [QUICKEN_8_5, QUICKEN_9_3];
@@ -48,7 +51,8 @@ export function userTagJoin(layout: QuickenLayout) {
 /**
  * Build a small, synthetic Quicken-shaped database for deterministic tests.
  * It contains no user data and intentionally includes split, transfer,
- * report-excluded, cash-account, and end-date edge cases.
+ * report-excluded, cash-account, and end-date edge cases, plus one long and one
+ * short investment position.
  */
 export function createSyntheticQuickenDb(
   filename = ":memory:",
@@ -77,7 +81,8 @@ export function createSyntheticQuickenDb(
       Z_PK INTEGER PRIMARY KEY,
       Z_ENT INTEGER,
       ZNAME TEXT,
-      ZPARENTCATEGORY INTEGER
+      ZPARENTCATEGORY INTEGER,
+      ZTYPE INTEGER
     );
     CREATE TABLE ZTRANSACTION (
       Z_PK INTEGER PRIMARY KEY,
@@ -127,6 +132,7 @@ export function createSyntheticQuickenDb(
       Z_PK INTEGER PRIMARY KEY,
       ZNAME TEXT,
       ZTICKER TEXT
+      ${layout.hasSecurityCurrency ? ", ZCURRENCY TEXT" : ""}
     );
     CREATE TABLE ZSECURITYQUOTE (
       Z_PK INTEGER PRIMARY KEY,
@@ -226,7 +232,7 @@ export function createSyntheticQuickenDb(
 
   db.exec(`
     INSERT INTO ZUSERPAYEE VALUES (1, 'Merchant'), (2, 'Transfer');
-    INSERT INTO ZTAG VALUES
+    INSERT INTO ZTAG (Z_PK, Z_ENT, ZNAME, ZPARENTCATEGORY) VALUES
       (10, ${layout.categoryTagEntity}, 'Food', NULL),
       (11, ${layout.categoryTagEntity}, 'Groceries', 10),
       (12, ${layout.categoryTagEntity}, 'Dining', 10),
@@ -263,10 +269,14 @@ export function createSyntheticQuickenDb(
   db.exec(`
     INSERT INTO ZFISTATEMENT VALUES (1, 1, ${noon("2024-01-31")}, ${noon("2024-01-31")}, 25);
     INSERT INTO ZFIPOSITION VALUES (1, 1, 100), (2, 1, 0);
-    INSERT INTO ZSECURITY VALUES (1, 'Example Fund', 'EXMPL');
-    INSERT INTO ZPOSITION VALUES (1, 1, 1);
-    INSERT INTO ZLOT VALUES (1, 1, 2, 150);
-    INSERT INTO ZSECURITYQUOTE VALUES (1, 1, 100, ${noon("2024-01-31")});
+    INSERT INTO ZSECURITY VALUES
+      (1, 'Example Fund', 'EXMPL'${layout.hasSecurityCurrency ? ", 'USD'" : ""}),
+      (2, 'Shorted Stock', 'SHRT'${layout.hasSecurityCurrency ? ", NULL" : ""});
+    INSERT INTO ZPOSITION VALUES (1, 1, 1), (2, 2, 1);
+    INSERT INTO ZLOT VALUES (1, 1, 2, 150), (2, 2, -3, 0), (3, 1, 0, 0);
+    INSERT INTO ZSECURITYQUOTE VALUES
+      (1, 1, 100, ${noon("2024-01-31")}),
+      (2, 2, 20, ${noon("2024-01-31")});
     INSERT INTO ZBUDGET VALUES (1, 'Household', 'USD', 1, 1, 0);
     INSERT INTO ZBUDGETLINEITEM VALUES (1, 1, 11, NULL, 0, ${oldRollover ? "0, " : ""}0);
     INSERT INTO ZBUDGETTARGET VALUES (1, 1, 202401, 500, ${oldRollover ? "0" : "0, NULL"});

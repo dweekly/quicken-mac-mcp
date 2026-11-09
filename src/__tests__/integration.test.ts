@@ -629,10 +629,10 @@ describeWithDb("raw_query safety", () => {
 // ============================================================
 
 describeWithDb("portfolio data integrity", () => {
-  it("all holdings have positive share counts", () => {
+  it("all holdings have non-zero share counts (short positions are negative)", () => {
     const result = listPortfolio(db, {}) as any[];
     for (const h of result) {
-      expect(h.current_shares).toBeGreaterThan(0);
+      expect(Math.abs(h.current_shares)).toBeGreaterThan(0);
     }
   });
 

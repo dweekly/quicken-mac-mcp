@@ -223,7 +223,7 @@ export const toolsRegistry: ToolDef[] = [
   {
     name: "list_portfolio",
     description:
-      "List current investment holdings across all brokerage/retirement accounts. Shows shares, cost basis, and enriches with stored Quicken quotes to compute market value and gain/loss.",
+      "List current investment holdings across all brokerage/retirement accounts. Shows shares, cost basis, and enriches with stored Quicken quotes to compute market value and gain/loss. Short positions appear with negative shares. Includes the security's currency when the Quicken file records one.",
     parameters: {
       account_names: {
         type: "array",
