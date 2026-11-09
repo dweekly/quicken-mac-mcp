@@ -20,7 +20,11 @@ blocking the release in flight. Fresh as of 2026-11-09.
   build. Land it as its own change, with a live-database test run and a test of the
   packaged Claude Desktop bundles on Apple Silicon and Intel.
 - `typescript` 7: compiles this code, but `typescript-eslint` 8 refuses to run on it
-  ("does not support TS 7.0"). Revisit when `typescript-eslint` supports TypeScript 7.
+  ("does not support TS 7.0"); support is expected once TypeScript 7.1 ships an API.
+  Revisit then. Microsoft's side-by-side setup (`typescript` aliased to
+  `@typescript/typescript6`, `@typescript/native` aliased to TypeScript 7) was tried
+  on 2026-11-09 and builds, lints and passes the synthetic tests, but was not adopted:
+  build speed is not a problem at this size.
 - `@types/node` stays on 22 on purpose: it should match the lowest Node version in
   `engines`, not the newest release. Move both together when Node 22 support is dropped.
 - `package.json` carries three `overrides` that force patched versions into
