@@ -15,9 +15,11 @@ blocking the release in flight. Fresh as of 2026-11-09.
 
 ## Deferred dependency work
 
-- Major upgrades for `better-sqlite3`, `@types/better-sqlite3`, `@types/node`,
-  and `typescript` were intentionally deferred from 1.6.0. Land them in a
-  separate compatibility-focused change.
+- Major upgrades for `@types/node` and `typescript` were intentionally deferred
+  from 1.6.0. Land them in a separate compatibility-focused change.
+- The Intel Claude Desktop bundle built with `better-sqlite3` 13 has not been run:
+  the release workflow checks that it contains the x86_64 addon, but nobody has
+  loaded it on an Intel Mac. Confirm on the first release after the upgrade.
 - `package.json` carries three `overrides` that force patched versions into
   development-only tooling whose own releases still pin vulnerable ones: `minimatch`
   11 under `eslint` / `typescript-eslint`, and `zod` 4 and `tmp` 0.2.7 under
