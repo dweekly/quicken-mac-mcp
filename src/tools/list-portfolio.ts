@@ -12,8 +12,23 @@ interface HoldingRow {
   account: string;
   security: string;
   ticker: string | null;
+  currency?: string | null;
   current_shares: number;
   cost_basis: number;
+}
+
+/**
+ * Lots whose units round to nothing are closed. Anything else is reported,
+ * including negative units: a short, or shares removed with no recorded purchase.
+ */
+export const OPEN_LOT_FILTER = "ABS(COALESCE(l.ZLATESTUNITS, 0)) > 0.000000001";
+
+/** ZSECURITY.ZCURRENCY exists in newer Quicken files only (absent in 8.5). */
+function hasSecurityCurrency(db: Database.Database): boolean {
+  const columns = db.prepare("PRAGMA table_info(ZSECURITY)").all() as Array<{
+    name: string;
+  }>;
+  return columns.some((column) => column.name === "ZCURRENCY");
 }
 
 interface DbQuote {
@@ -35,19 +50,22 @@ function queryHoldings(db: Database.Database, args: PortfolioArgs): HoldingRow[]
     params.push(...args.account_names);
   }
 
+  const currency = hasSecurityCurrency(db);
+
   const sql = `
     SELECT
       a.ZNAME as account,
       s.ZNAME as security,
       s.ZTICKER as ticker,
+      ${currency ? "s.ZCURRENCY as currency," : ""}
       ROUND(SUM(l.ZLATESTUNITS), 6) as current_shares,
       ROUND(SUM(l.ZLATESTCOSTBASIS), 2) as cost_basis
     FROM ZLOT l
     JOIN ZPOSITION p ON l.ZPOSITION = p.Z_PK
     JOIN ZSECURITY s ON p.ZSECURITY = s.Z_PK
     JOIN ZACCOUNT a ON p.ZACCOUNT = a.Z_PK
-    WHERE l.ZLATESTUNITS > 0 ${filter}
-    GROUP BY a.ZNAME, s.ZNAME, s.ZTICKER
+    WHERE ${OPEN_LOT_FILTER} ${filter}
+    GROUP BY a.ZNAME, s.ZNAME, s.ZTICKER${currency ? ", s.ZCURRENCY" : ""}
     ORDER BY a.ZNAME, s.ZNAME
   `;
 
@@ -98,6 +116,10 @@ export function listPortfolio(db: Database.Database, args: PortfolioArgs) {
       current_shares: h.current_shares,
       cost_basis: h.cost_basis,
     };
+
+    if (h.currency) {
+      result.currency = h.currency;
+    }
 
     if (h.ticker && dbQuotes.has(h.ticker)) {
       const dbq = dbQuotes.get(h.ticker)!;

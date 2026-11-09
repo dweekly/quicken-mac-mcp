@@ -46,6 +46,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:docs": "vitest run src/__tests__/docs.test.ts",
+    "schema:check": "python3 scripts/refresh_schema_doc.py --check",
+    "schema:refresh": "python3 scripts/refresh_schema_doc.py",
     "pack:mcpb": "./scripts/pack-mcpb.sh"
   },
   "dependencies": {
