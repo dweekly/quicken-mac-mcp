@@ -17,7 +17,10 @@ interface HoldingRow {
   cost_basis: number;
 }
 
-/** Lots whose units round to nothing are closed; anything else, long or short, is held. */
+/**
+ * Lots whose units round to nothing are closed. Anything else is reported,
+ * including negative units: a short, or shares removed with no recorded purchase.
+ */
 export const OPEN_LOT_FILTER = "ABS(COALESCE(l.ZLATESTUNITS, 0)) > 0.000000001";
 
 /** ZSECURITY.ZCURRENCY exists in newer Quicken files only (absent in 8.5). */
