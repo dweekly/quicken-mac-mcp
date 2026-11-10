@@ -23,7 +23,7 @@ This MCP server opens the database read-only and never writes. If you fork the s
 1. **Increment `Z_OPT` on every UPDATE.** It is the optimistic-locking counter Core Data uses to detect concurrent edits. Updates that don't bump `Z_OPT` may be silently rolled back or cause Quicken to corrupt the row on next sync. Always write `SET ZNOTE = ?, Z_OPT = Z_OPT + 1`.
 2. **Quicken must be closed before writing.** The same encryption that requires Quicken to be open for *reads* means concurrent writes from your script while Quicken is running will fight Core Data's in-memory state. Quit Quicken, run your update, then reopen — Quicken will pick up the changed rows.
 
-3. **If Mobile & Web sync is on, also set the modification timestamps.** Quicken reconciles each row against its cloud copy and the newer side wins, so a row changed with only `Z_OPT + 1` can be reverted by the next sync. Set `ZMODIFICATIONTIMESTAMP` and `ZUSERMODIFIEDTIMESTAMP` to now (Core Data epoch: Unix seconds minus `978307200`) in the same `UPDATE`; that made the desktop row the newer one and the change survived the next reopen (longer-term survival across syncs was not followed).
+3. **If Mobile & Web sync is on, also set the modification timestamps.** Quicken reconciles each row against its cloud copy and the newer side wins, so a row changed with only `Z_OPT + 1` can be reverted by the next sync. Set `ZMODIFICATIONTIMESTAMP` to now (Core Data epoch: Unix seconds minus `978307200`) in the same `UPDATE`, and `ZUSERMODIFIEDTIMESTAMP` too on tables that have it (`ZTRANSACTION` does; `ZCASHFLOWTRANSACTIONENTRY`, where split memos live, does not, so naming it there fails with `no such column`); that made the desktop row the newer one and the change survived the next reopen (longer-term survival across syncs was not followed).
 
 Always make a file-level backup of the `.quicken/data` file before writing, and put it **outside** the `.quicken` bundle. A copy left inside the bundle is swept into Quicken's own backups and inflates every one of them.
 
@@ -3356,14 +3356,14 @@ Exclude placeholders from any analysis of what the user did, and treat a non-zer
 
 ### Stock splits: `ZSECURITYSPLIT` and `ZTYPE = 23`
 
-`ZSECURITYSPLIT` holds the corporate action (`ZSECURITY`, `ZSPLITDATE`, `ZNUMERATOR`, `ZDENOMINATOR`). New shares per old share is `ZNUMERATOR / ZDENOMINATOR`, but the two columns arrive in two shapes: downloaded rows are stored as `1 : 1/ratio` rounded to six decimals (a 3-for-1 is `1 / 0.333333`; the shape `1 / 5` also occurs, which reads as a 1-for-5 reverse split), while a split typed into the register is stored as `ratio : 1` (a 6-for-1 was `6 / 1`). Compare the quotient, never the columns.
+`ZSECURITYSPLIT` holds the corporate action (`ZSECURITY`, `ZSPLITDATE`, `ZNUMERATOR`, `ZDENOMINATOR`). New shares per old share is `1.0 * ZNUMERATOR / ZDENOMINATOR` (both columns can be stored as integers, and integer division turns a 1-for-5 into 0), but the two columns arrive in two shapes: downloaded rows are stored as `1 : 1/ratio` rounded to six decimals (a 3-for-1 is `1 / 0.333333`; the shape `1 / 5` also occurs, which reads as a 1-for-5 reverse split), while a split typed into the register is stored as `ratio : 1` (a 6-for-1 was `6 / 1`). Compare the quotient, never the columns.
 
 The register side of a split is a `ZTRANSACTION` of type 23 in the holding account on the split date. Historic files may instead carry a split as a new zero-basis lot dated on the split day, so a zero-basis lot on a split date is a mishandled split, not a missing transfer. Since the Quicken 9.3 beta a quote update can propose and apply Stock Split transactions wherever `ZSECURITYSPLIT` has a row and the register has no type-23 row for that date; on the observed file it compared the stored columns literally, so a `6 / 1` register split was reported as a "different ratio" from the downloaded `1 / 0.166667`.
 
 ```sql
 SELECT s.ZNAME AS security_name,
        date(sp.ZSPLITDATE + 978307200, 'unixepoch') AS split_date,
-       ROUND(sp.ZNUMERATOR / sp.ZDENOMINATOR, 4) AS new_per_old
+       ROUND(1.0 * sp.ZNUMERATOR / sp.ZDENOMINATOR, 4) AS new_per_old
 FROM ZSECURITYSPLIT sp
 JOIN ZSECURITY s ON s.Z_PK = sp.ZSECURITY
 WHERE COALESCE(sp.ZDELETIONCOUNT, 0) = 0
