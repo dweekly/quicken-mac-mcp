@@ -59,6 +59,13 @@ describe("version consistency", () => {
     expect(plugin.version).toBe(pkg.version);
   });
 
+  it("man pages carry the package version", () => {
+    for (const name of ["qmac", "quicken-mac-mcp"]) {
+      const page = readFileSync(resolve(ROOT, `man/${name}.1`), "utf8");
+      expect(page).toContain(`"${name} v${pkg.version}"`);
+    }
+  });
+
   it("Homebrew formula targets the package version", () => {
     expect(formula).toContain(`quicken-mac-mcp-${pkg.version}.tgz`);
   });

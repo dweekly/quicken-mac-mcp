@@ -6,7 +6,7 @@
  *
  * Wired into the `version` lifecycle hook so `npm version <bump>` and the
  * tests in src/__tests__/versions.test.ts keep server.json, manifest.json,
- * and plugin/.claude-plugin/plugin.json in lockstep with package.json. Without this they drift
+ * plugin/.claude-plugin/plugin.json and the man page headers in lockstep with package.json. Without this they drift
  * silently across releases (e.g. server.json sat at 1.0.3 across 1.0.3
  * → 1.2.2 before this change).
  */
@@ -64,6 +64,23 @@ if (
   })
 ) {
   changed.push("plugin/.claude-plugin/plugin.json");
+}
+
+// Man pages carry the version in their .TH header: "qmac v1.2.3".
+for (const [relPath, name] of [
+  ["man/qmac.1", "qmac"],
+  ["man/quicken-mac-mcp.1", "quicken-mac-mcp"],
+]) {
+  const path = resolve(ROOT, relPath);
+  const before = readFileSync(path, "utf8");
+  const after = before.replace(
+    new RegExp(`"${name} v\\d+\\.\\d+\\.\\d+(?:-[\\w.]+)?"`),
+    `"${name} v${VERSION}"`
+  );
+  if (after !== before) {
+    writeFileSync(path, after);
+    changed.push(relPath);
+  }
 }
 
 if (changed.length === 0) {

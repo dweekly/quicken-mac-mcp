@@ -23,6 +23,9 @@ The Claude Code plugin install (`claude plugin install quicken-mac-mcp`) bundles
 
 **Quicken For Mac must be open** while using either the skill or the MCP. Quicken encrypts its database file when the app is closed — the data is only readable while Quicken is running.
 
+- **macOS**, with Quicken For Mac. Tested against Quicken 9.3.1; the older 8.5 database layout is covered by test fixtures.
+- **Node.js 22.14 or newer** (23.6 or newer on the 23 line) for the MCP server and `qmac` CLI. The skill alone needs only Python 3.
+
 ## How it works
 
 Quicken For Mac stores data in a Core Data SQLite database inside a `.quicken` bundle in your Documents folder (e.g., `~/Documents/MyFinances.quicken/data`). The skill teaches Claude how to query that database directly; the MCP server is a thin wrapper that exposes eight prepackaged queries as tools.
@@ -103,7 +106,7 @@ These are the eight prepackaged tools the MCP server exposes. The skill covers t
 | `spending_by_category` | Aggregate negative consumer-spending splits by category, excluding transfers and report-excluded rows and preserving `(Uncategorized)`. |
 | `spending_over_time` | Monthly negative consumer-spending totals with the same exclusions, optionally broken down by category. |
 | `search_payees` | Search payees by name with transaction counts. |
-| `list_portfolio` | List investment holdings with shares, cost basis, and stored Quicken price quotes. |
+| `list_portfolio` | List investment holdings with shares, cost basis, currency, and stored Quicken price quotes. Positions with a negative share count are included. |
 | `raw_query` | Run arbitrary SELECT queries (500-row limit). |
 
 ## Self-Documenting Command-Line Interface (`qmac`)
@@ -244,7 +247,7 @@ Every Markdown document in this repo, with what would make it worth revisiting.
 
 ## Disclaimer
 
-This project is an independent, community-developed open-source tool. It is **not** an official Intuit product and is not endorsed by, directly affiliated with, maintained by, or sponsored by Intuit Inc. or any of its subsidiaries. "Quicken" is a registered trademark of Intuit Inc. All product and company names are trademarks or registered trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.
+This project is an independent, community-developed open-source tool. It is **not** an official Quicken product and is not endorsed by, directly affiliated with, maintained by, or sponsored by Quicken Inc. or the owner of the Quicken trademark. "Quicken" is a registered trademark of Rocket Mortgage, LLC. All product and company names are trademarks or registered trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.
 
 This software is provided "as is," without warranty of any kind. The authors and contributors are not responsible for any damage, data loss, or other issues arising from its use. Always back up your financial data before using third-party tools.
 
