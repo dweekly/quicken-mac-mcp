@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
 
 ### Fixed
 
@@ -16,6 +16,7 @@
 
 - Upgraded `better-sqlite3` from 12 to 13. It now ships prebuilt native addons inside the package, so installing no longer runs a build or download step, and Claude Desktop bundles carry only the addon for their own architecture. **The minimum Node.js version rises from 22.0 to 22.14** (or 23.6 on the 23 line), because the new addon needs Node-API 10; older Node 22 releases fail at startup.
 - `docs/schema.md` is recaptured from Quicken 9.3.1: renumbered join tables (`Z_16USERTAGS`, `Z_56USERTAGS`), the new `ZACCOUNTGROUP` table, removed `ZTAXLINEITEM`, and new columns. It also corrects the description of the `Z79_PARENT` column, replaces the account-type list with the values Quicken actually stores (`BROKERAGENORMAL`, `DEFERREDCOMPRETIREMENT401K`, and so on, rather than `INVESTMENT` or `RETIREMENT`), and names the four budget rollover modes.
+- Updated the bundled Homebrew formula for 1.7.0.
 
 ### Security
 
