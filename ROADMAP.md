@@ -15,9 +15,10 @@ blocking the release in flight. Fresh as of 2026-11-09.
 
 ## Deferred dependency work
 
-- The Intel Claude Desktop bundle built with `better-sqlite3` 13 has not been run:
-  the release workflow checks that it contains the x86_64 addon, but nobody has
-  loaded it on an Intel Mac. Confirm on the first release after the upgrade.
+- The 1.7.0 Intel Claude Desktop bundle was checked to contain the x86_64
+  `better-sqlite3` addon but was never run. From the next release the workflow runs
+  the server from each packed bundle on its own architecture; if that step passes
+  for x64, delete this line.
 - `typescript` 7: compiles this code, but `typescript-eslint` 8 refuses to run on it
   ("does not support TS 7.0"); support is expected once TypeScript 7.1 ships an API.
   Revisit then. Microsoft's side-by-side setup (`typescript` aliased to
