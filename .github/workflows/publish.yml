@@ -129,6 +129,14 @@ jobs:
             x64) file better_sqlite3.node | grep -q x86_64 ;;
           esac
 
+      - name: Run the server from the packed bundle
+        run: |
+          # Proves the bundled native addon loads on this architecture: the
+          # entry point opens an in-memory database before printing anything.
+          mkdir bundle-smoke
+          unzip -q "${{ matrix.asset }}" -d bundle-smoke
+          node bundle-smoke/dist/index.js --version
+
       - name: Upload bundle to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -155,6 +163,23 @@ jobs:
           curl -fsSL "$PUBLISHER_URL" -o mcp-publisher.tar.gz
           echo "$PUBLISHER_SHA256  mcp-publisher.tar.gz" | sha256sum --check
           tar -xzf mcp-publisher.tar.gz mcp-publisher
+
+      - name: Wait for npm to serve the released version
+        # The registry validates that the npm version exists. npm can take a
+        # moment to serve a version it has just accepted; 1.7.0 failed here
+        # with a 404 and passed on a manual re-run minutes later.
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          for attempt in $(seq 1 30); do
+            if [ "$(npm view "quicken-mac-mcp@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+              echo "npm serves quicken-mac-mcp@$VERSION (attempt $attempt)"
+              exit 0
+            fi
+            echo "quicken-mac-mcp@$VERSION not visible yet (attempt $attempt of 30)"
+            sleep 10
+          done
+          echo "::error::npm did not serve quicken-mac-mcp@$VERSION within 5 minutes"
+          exit 1
 
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
