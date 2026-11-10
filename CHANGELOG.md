@@ -8,6 +8,10 @@
 - The README and website disclaimer named Intuit as the owner of the Quicken trademark; quicken.com now attributes it to Rocket Mortgage, LLC.
 - The README now states the Node.js requirement (22.14 or newer).
 
+### Added
+
+- `docs/schema.md` gains a "Field Semantics and Traps" section (contributed by Als-Pal): investment transaction type codes, soft deletes, why the download archive must not be summed, security identity, lots and cost basis, placeholders, stock splits, and budget-table traps, checked against a second real-world file.
+
 ## 1.7.0
 
 ### Fixed

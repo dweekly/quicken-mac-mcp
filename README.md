@@ -225,7 +225,7 @@ docker run --rm -v ~/Documents/YourFile.quicken:/data:ro quicken-mac-mcp
 
 Every Markdown document in this repo, with what would make it worth revisiting.
 
-- [Schema reference](docs/schema.md): every table, column, index, entity and join table in the Quicken For Mac database, with the conventions needed to query it. (updated 2026-11-09; update when: a Quicken release changes the database layout, which `npm run schema:check` reports)
+- [Schema reference](docs/schema.md): every table, column, index, entity and join table in the Quicken For Mac database, with the conventions needed to query it and field-level notes on what the values mean and where they mislead. (updated 2026-11-09; update when: a Quicken release changes the database layout, which `npm run schema:check` reports)
 - [Quicken skill](plugin/skills/quicken/SKILL.md): the Claude skill's entry point: how to find and open the database safely and which reference to load for a question. (updated 2026-08-13; update when: a reference file is added or removed, or the safe-access steps change)
 - [Balances reference](plugin/skills/quicken/references/balances.md): skill recipes for account balances and how fresh they are. (updated 2026-08-13; update when: Quicken changes where it stores institution balances or statements)
 - [Budgets reference](plugin/skills/quicken/references/budgets.md): skill recipes for budgets, line items and targets. (updated 2026-11-09; update when: budget tables change, or the stored rollover mode values are verified)

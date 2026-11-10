@@ -3243,7 +3243,7 @@ JOIN ZRECONCILEDTRANSACTION rt ON rt.ZRECONCILERECORD = rr.Z_PK;
 
 ## Field Semantics and Traps
 
-Everything in this section was learned by querying one real-world Quicken For Mac file (a different, newer file than the Quicken 8.5 capture the DDL above comes from: Quicken 9.x, roughly 90,000 transactions, with investment accounts) and cross-checking against the Quicken UI and institution statements. Every mechanism described below is "observed on that file", not a specification: Quicken's model differs between versions, and the skill references in `plugin/skills/quicken/references/` are right to ask you to validate each of them on your own file before relying on it.
+Everything in this section was learned by querying one real-world Quicken For Mac file (not the file the DDL above was captured from: Quicken 9.x, roughly 90,000 transactions, with investment accounts) and cross-checking against the Quicken UI and institution statements. Every mechanism described below is "observed on that file", not a specification: Quicken's model differs between versions, and the skill references in `plugin/skills/quicken/references/` are right to ask you to validate each of them on your own file before relying on it.
 
 ### Soft deletes: `ZDELETIONCOUNT`
 
@@ -3265,23 +3265,27 @@ Filter `COALESCE(ZDELETIONCOUNT, 0) = 0` on single-table reads (payees, categori
 | 3 | Buy | units in, cash out |
 | 4 | Buy Bonds | units in, cash out |
 | 5 | Buy to Cover | units in, cash out (closes a short) |
+| 6 | Margin interest expense (seen only on the second file) | no `ZPOSITION`; `ZUNITS` 0, cash out |
 | 7 | Investment expense (advisor fees, etc.) | `ZUNITS` 0, cash out |
 | 8 | Long-term capital gain distribution | `ZUNITS` 0, cash in |
 | 9 | Short-term capital gain distribution | `ZUNITS` 0, cash in |
 | 10 | Dividend / income | `ZUNITS` 0, cash in |
 | 11 | Interest income | `ZUNITS` 0, cash in |
 | 12 | Mixed; not determinable from signature | — |
-| 13 | Reinvest long-term capital gain | every row inert on the observed file: `ZUNITS` 0 and `ZAMOUNT` 0 |
+| 13 | Reinvest long-term capital gain | units in, `ZAMOUNT` 0 on the second file; every row inert (`ZUNITS` 0 and `ZAMOUNT` 0) on the first |
+| 14 | Reinvest short-term capital gain (seen only on the second file) | units in, `ZAMOUNT` 0 |
 | 15 | Reinvest dividend | units in, `ZAMOUNT` 0 |
 | 16 | Reinvest interest | units in, `ZAMOUNT` 0 |
-| 17 | Remove Shares, including automatic Placeholders | units out, `ZAMOUNT` 0 |
+| 17 | Remove Shares, including automatic Placeholders that remove shares | units out, `ZAMOUNT` 0 |
 | 18 | Return of capital | `ZUNITS` 0, cash in |
 | 19 | Sell | units out, cash in |
 | 20 | Sell (bonds) | units out, cash in |
 | 21 | Short Sell | units out, cash in |
 | 23 | Stock Split | `ZUNITS` 0, `ZAMOUNT` 0; dated on the split |
 
-The mapping is not exhaustive (6, 14 and 22 did not occur in the file it came from, so their meaning is unknown). Never write a `CASE` over it without an `ELSE`.
+The mapping is not exhaustive (22 occurred in neither file, so its meaning is unknown). Never write a `CASE` over it without an `ELSE`.
+
+The rows marked "second file" come from checking this table against another real-world file (Quicken 9.3.1, roughly 70,000 transactions): there, every type 6 row carried the built-in category "Margin Interest Expense", every type 13 row "Reinvest Long-term Capital Gain" and every type 14 row "Reinvest Short-term Capital Gain". The other codes had the same signatures on both files. A Placeholder that adds shares is stored as type 2 (Add Shares), not type 17: on the second file about a quarter of the rows noted `Placeholder` were type 2.
 
 ### `ZFITRANSACTION` is a download archive, not a register
 
@@ -3303,7 +3307,7 @@ ORDER BY download_rows - distinct_downloads DESC;
 
 ### Security identity: `ZTICKER` can be stale, `ZSECURITYID` is authoritative
 
-`ZSECURITY.ZTICKER` is free text that can hold an old symbol or CUSIP. The identifier Quicken actually matches on is `ZSECURITYID.ZUNIQUEID` with `ZUNIQUEIDTYPE` (`CUSIP`, `QCSSYMBOL`, or `MANUAL`). A security once appeared to be filed under the wrong CUSIP purely because `ZTICKER` was stale; acting on the ticker would have meant editing dozens of positions to fix a defect that did not exist. Files also accumulate near-duplicate securities with almost identical names, so always check which `ZSECURITY` row a position actually points at before grouping by name or ticker.
+`ZSECURITY.ZTICKER` is free text that can hold an old symbol or CUSIP. The identifier Quicken actually matches on is `ZSECURITYID.ZUNIQUEID` with `ZUNIQUEIDTYPE` (`CUSIP`, `QCSSYMBOL`, `QCSGUID`, or `MANUAL`). A security once appeared to be filed under the wrong CUSIP purely because `ZTICKER` was stale; acting on the ticker would have meant editing dozens of positions to fix a defect that did not exist. Files also accumulate near-duplicate securities with almost identical names, so always check which `ZSECURITY` row a position actually points at before grouping by name or ticker.
 
 ```sql
 SELECT s.Z_PK AS security_id, s.ZNAME AS security_name, s.ZTICKER AS ticker,
@@ -3338,7 +3342,7 @@ Buys also produce `ZLOTMOD` rows, with a negative before-minus-after (basis adde
 
 ### Placeholder transactions
 
-A downloaded investment account is reconciled to the institution's reported holdings, and the adjustment is a `ZTRANSACTION` of type 17 whose `ZNOTE` is `Placeholder`, with a description of the form `+N shares (to reach X)`. Quicken created and resized these automatically on the observed file; the user never enters one, and it disappeared once the real transactions accounted for the position. Accounts also accumulate dead zero-unit placeholders; only non-zero ones matter.
+A downloaded investment account is reconciled to the institution's reported holdings, and the adjustment is a `ZTRANSACTION` whose `ZNOTE` is `Placeholder` (type 17 when it removes shares, type 2 when it adds them), with a description of the form `+N shares (to reach X)`. Quicken created and resized these automatically on the observed file; the user never enters one, and it disappeared once the real transactions accounted for the position. Accounts also accumulate dead zero-unit placeholders; only non-zero ones matter.
 
 ```sql
 SELECT a.ZNAME AS account_name, t.Z_PK AS transaction_id, ROUND(t.ZUNITS, 4) AS units
@@ -3412,7 +3416,7 @@ Core Data uses **single-table inheritance** for several entity hierarchies. The 
 
 ### `Z79_PARENT` and other `Z<n>_<RELATION>` columns
 
-`ZCASHFLOWTRANSACTIONENTRY` carries `Z79_PARENT` next to `ZPARENT`, and `ZATTACHMENT` carries `Z79_TRANSACTION` next to `ZTRANSACTION`. These are not duplicate foreign keys and not migration leftovers. When a to-one relationship points at an **abstract** entity (`Transaction`, whose `Z_ENT` is 79 in the captured files), Core Data stores a second column holding the `Z_ENT` of the destination row's **concrete** subentity, so it knows which subclass to instantiate. On a live file every `ZCASHFLOWTRANSACTIONENTRY.Z79_PARENT` equalled the parent transaction's `Z_ENT` (`CashFlowTransaction`, `SmartCashFlowTransaction` or `InvestmentTransaction`); rows whose `ZPARENT` is NULL have it NULL too.
+`ZCASHFLOWTRANSACTIONENTRY` carries `Z79_PARENT` next to `ZPARENT`, and `ZATTACHMENT` carries `Z79_TRANSACTION` next to `ZTRANSACTION`. These are not duplicate foreign keys and not migration leftovers. When a to-one relationship points at an **abstract** entity (`Transaction`, whose `Z_ENT` is 79 in both the 8.5 and 9.3.1 captures), Core Data stores a second column holding the `Z_ENT` of the destination row's **concrete** subentity, so it knows which subclass to instantiate. On a live file every `ZCASHFLOWTRANSACTIONENTRY.Z79_PARENT` equalled the parent transaction's `Z_ENT` (`CashFlowTransaction`, `SmartCashFlowTransaction` or `InvestmentTransaction`); rows whose `ZPARENT` is NULL have it NULL too.
 
 ```sql
 SELECT e.Z79_PARENT, t.Z_ENT, COUNT(*) AS rows_
@@ -3442,7 +3446,7 @@ These changes did not all arrive in one release. Quicken ships every historical 
 
 ### Date Fields
 
-- `ZTRANSACTION.ZPOSTEDDATE` -- the date the transaction posted; populated for **downloaded** rows only. It is **NULL on every hand-entered transaction**, not just pending or scheduled ones (on one real-world file, about half of all rows). `WHERE ZPOSTEDDATE <= x` therefore silently drops everything typed into the register; always use `COALESCE(ZPOSTEDDATE, ZENTEREDDATE)`
+- `ZTRANSACTION.ZPOSTEDDATE` -- the date the transaction posted; populated mainly for **downloaded** rows. It is **NULL on almost every hand-entered transaction**, not just pending or scheduled ones (on one real-world file, about half of all rows; on another, a sixth). The match is close but not exact: on the second file about a tenth of rows with no download link still had a posted date, and about one in a hundred downloaded rows lacked one. `WHERE ZPOSTEDDATE <= x` therefore silently drops everything typed into the register; always use `COALESCE(ZPOSTEDDATE, ZENTEREDDATE)`
 - `ZTRANSACTION.ZENTEREDDATE` -- when the user entered or the system downloaded the transaction; always populated
 - Both are Core Data timestamps (seconds since 2001-01-01)
 
