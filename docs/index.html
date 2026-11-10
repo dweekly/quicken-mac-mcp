@@ -533,9 +533,9 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
 
       <h3>Requirements</h3>
       <ul>
-        <li>Quicken For Mac must be open and unlocked while your agent runs; Quicken encrypts the SQLite database on disk when the application is closed. Tested against Quicken 9.3.1.</li>
+        <li>Quicken For Mac should be open and unlocked while your agent runs; depending on the install, Quicken may encrypt the SQLite database on disk when the application is closed. Tested against Quicken 9.3.1.</li>
         <li>The MCP server and <code>qmac</code> need Node.js 22.14 or newer. The skill alone needs only Python 3.</li>
-        <li>With more than one Quicken file in <code>~/Documents</code>, the server will not guess: set <code>QUICKEN_DB_PATH</code> to the file's <code>.quicken/data</code> path.</li>
+        <li>The server finds your file automatically in <code>~/Documents</code>, <code>~/Library/Application Support/Quicken*/Documents</code>, or the App Store container. With more than one Quicken file across those, it will not guess: set <code>QUICKEN_DB_PATH</code> to the file's <code>.quicken/data</code> path.</li>
       </ul>
     </section>
 

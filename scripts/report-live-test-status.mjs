@@ -12,21 +12,55 @@ let unavailableReason;
 if (configured) {
   databasePath = configured;
 } else {
-  const documents = join(homedir(), "Documents");
-  let bundles = [];
-  try {
-    bundles = readdirSync(documents).filter((entry) => entry.endsWith(".quicken"));
-  } catch {
-    unavailableReason = "~/Documents is not readable";
+  // Mirrors quickenSearchDirectories() in src/db.ts (kept inline because this
+  // script runs before the TypeScript build).
+  const home = homedir();
+  const searchDirs = [join(home, "Documents")];
+  const readDirectoryIfPresent = (dir) => {
+    try {
+      return readdirSync(dir);
+    } catch (err) {
+      if (err?.code === "ENOENT" || err?.code === "ENOTDIR") return [];
+      unavailableReason = `a Quicken location is not readable (${err?.code ?? "error"})`;
+      return [];
+    }
+  };
+  const appSupport = join(home, "Library", "Application Support");
+  for (const entry of readDirectoryIfPresent(appSupport).sort()) {
+    if (entry === "Quicken" || entry.startsWith("Quicken ")) {
+      searchDirs.push(join(appSupport, entry, "Documents"));
+    }
+  }
+  searchDirs.push(
+    join(
+      home,
+      "Library",
+      "Containers",
+      "com.quicken.QuickenAppStore",
+      "Data",
+      "Library",
+      "Application Support",
+      "Quicken",
+      "Documents"
+    )
+  );
+
+  const bundles = [];
+  for (const dir of searchDirs) {
+    for (const entry of readDirectoryIfPresent(dir)) {
+      if (entry.endsWith(".quicken")) bundles.push(join(dir, entry, "data"));
+    }
   }
 
-  if (!unavailableReason && bundles.length === 0) {
-    unavailableReason = "no .quicken bundles were found in ~/Documents";
-  } else if (!unavailableReason && bundles.length > 1) {
+  if (unavailableReason) {
+    // keep the unreadable-directory reason; do not guess from the rest
+  } else if (bundles.length === 0) {
+    unavailableReason = "no .quicken bundles were found in any known Quicken location";
+  } else if (bundles.length > 1) {
     unavailableReason =
       "multiple .quicken bundles were found and auto-detection refuses to guess";
-  } else if (!unavailableReason) {
-    databasePath = join(documents, bundles[0], "data");
+  } else {
+    databasePath = bundles[0];
   }
 }
 
