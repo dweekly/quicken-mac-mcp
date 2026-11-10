@@ -5,7 +5,10 @@ import {
   detectQuickenDb,
   inclusiveEndDateToCoreDataExclusive,
 } from "../db.js";
-import { readdirSync, statSync } from "fs";
+import { readdirSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+import { sanitizeError } from "../server.js";
 
 // Mock fs for auto-detection tests
 vi.mock("fs", async () => {
@@ -13,7 +16,6 @@ vi.mock("fs", async () => {
   return {
     ...actual,
     readdirSync: vi.fn(actual.readdirSync),
-    statSync: vi.fn(actual.statSync),
   };
 });
 
@@ -79,22 +81,129 @@ describe("detectQuickenDb", () => {
     vi.restoreAllMocks();
   });
 
-  it("throws when no .quicken bundles are found", () => {
-    vi.mocked(readdirSync).mockReturnValue(["file.txt", "folder"] as any);
+  // Route readdirSync by directory (given relative to the home folder) so each
+  // Quicken location can be stubbed independently; unlisted directories behave
+  // as absent.
+  function stubDirectories(listing: Record<string, string[]>) {
+    const byPath = new Map(
+      Object.entries(listing).map(([rel, entries]) => [join(homedir(), rel), entries])
+    );
+    vi.mocked(readdirSync).mockImplementation(((dir: string) => {
+      const entries = byPath.get(String(dir));
+      if (entries) return entries as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    }) as any);
+  }
+
+  it("throws when no .quicken bundles are found anywhere", () => {
+    stubDirectories({ Documents: ["file.txt", "folder"] });
     expect(() => detectQuickenDb()).toThrow("No .quicken bundles found");
+    expect(() => detectQuickenDb()).toThrow("QUICKEN_DB_PATH");
   });
 
-  it("refuses to guess when multiple bundles are found", () => {
-    vi.mocked(readdirSync).mockReturnValue(["Old.quicken", "New.quicken"] as any);
+  it("refuses to guess when multiple bundles are found in one directory", () => {
+    stubDirectories({ Documents: ["Old.quicken", "New.quicken"] });
     expect(() => detectQuickenDb()).toThrow("Multiple .quicken bundles found");
     expect(() => detectQuickenDb()).toThrow("QUICKEN_DB_PATH");
   });
 
-  it("returns path to data file when exactly one bundle is found", () => {
-    vi.mocked(readdirSync).mockReturnValue(["MyFinances.quicken"] as any);
-    vi.mocked(statSync).mockReturnValue({ mtimeMs: 1000 } as any);
+  it("refuses to guess when bundles are spread across directories", () => {
+    stubDirectories({
+      "Library/Application Support": ["Quicken"],
+      "Library/Application Support/Quicken/Documents": ["Current.quicken"],
+      Documents: ["Old.quicken"],
+    });
+    expect(() => detectQuickenDb()).toThrow("Multiple .quicken bundles found");
+  });
+
+  it("returns path to data file when exactly one bundle is in ~/Documents", () => {
+    stubDirectories({ Documents: ["MyFinances.quicken"] });
     const result = detectQuickenDb();
     expect(result).toContain("MyFinances.quicken");
     expect(result).toMatch(/\/data$/);
+  });
+
+  it("finds the retail default under ~/Library/Application Support/Quicken/Documents", () => {
+    stubDirectories({
+      "Library/Application Support": ["Quicken", "Unrelated"],
+      "Library/Application Support/Quicken/Documents": ["Qdata.quicken"],
+    });
+    const result = detectQuickenDb();
+    expect(result).toContain(
+      "/Library/Application Support/Quicken/Documents/Qdata.quicken/data"
+    );
+  });
+
+  it("finds a beta-channel folder such as 'Quicken Beta'", () => {
+    stubDirectories({
+      "Library/Application Support": ["Quicken Beta"],
+      "Library/Application Support/Quicken Beta/Documents": ["Beta.quicken"],
+    });
+    expect(detectQuickenDb()).toContain("/Quicken Beta/Documents/Beta.quicken/data");
+  });
+
+  it("finds the Mac App Store sandbox container", () => {
+    stubDirectories({
+      "Library/Containers/com.quicken.QuickenAppStore/Data/Library/Application Support/Quicken/Documents":
+        ["Store.quicken"],
+    });
+    expect(detectQuickenDb()).toContain("com.quicken.QuickenAppStore");
+  });
+
+  it("ignores Application Support folders that merely start with 'Quicken'", () => {
+    stubDirectories({
+      "Library/Application Support": ["Quickenfoo", "quicken"],
+      "Library/Application Support/Quickenfoo/Documents": ["Foo.quicken"],
+      "Library/Application Support/quicken/Documents": ["Lower.quicken"],
+    });
+    expect(() => detectQuickenDb()).toThrow("No .quicken bundles found");
+  });
+
+  it("refuses when a Quicken location exists but cannot be read", () => {
+    const byPath = new Map([
+      [join(homedir(), "Library/Application Support"), ["Quicken"]],
+      [
+        join(homedir(), "Library/Application Support/Quicken/Documents"),
+        ["Other.quicken"],
+      ],
+    ]);
+    vi.mocked(readdirSync).mockImplementation(((dir: string) => {
+      if (String(dir) === join(homedir(), "Documents")) {
+        throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+      }
+      const entries = byPath.get(String(dir));
+      if (entries) return entries as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    }) as any);
+    expect(() => detectQuickenDb()).toThrow("Cannot read");
+    expect(() => detectQuickenDb()).toThrow("QUICKEN_DB_PATH");
+  });
+
+  it("names every searched location in the not-found error", () => {
+    stubDirectories({});
+    expect(() => detectQuickenDb()).toThrow("Documents");
+    expect(() => detectQuickenDb()).toThrow("Application Support");
+    expect(() => detectQuickenDb()).toThrow("Mac App Store container");
+  });
+
+  it("reports where multiple bundles are without naming them or the home folder", () => {
+    stubDirectories({
+      Documents: ["My Family 2.quicken", "Other.quicken"],
+      "Library/Application Support": ["Quicken Beta"],
+      "Library/Application Support/Quicken Beta/Documents": ["Beta.quicken"],
+    });
+    let message = "";
+    try {
+      detectQuickenDb();
+    } catch (error: any) {
+      message = String(error.message);
+    }
+    expect(message).toContain("2 in Documents");
+    expect(message).toContain("1 in Application Support › Quicken Beta");
+    expect(message).not.toContain(homedir());
+    expect(message).not.toContain("My Family");
+    expect(message).not.toContain(".quicken/");
+    // Nothing path-shaped is left for the redactor to mangle.
+    expect(sanitizeError(new Error(message))).toBe(message);
   });
 });
