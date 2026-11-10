@@ -3324,13 +3324,13 @@ LIMIT 50;
 - The editable cost basis of an acquired lot is `ZTRANSACTION.ZCOSTBASIS` on the Add Shares (type 2) or Buy row. `ZLOT.ZLATESTCOSTBASIS` is derived from it.
 - **Editing a transaction made Quicken delete and recreate its `ZLOT` rows with new `Z_PK` values.** Never key anything on a lot's `Z_PK`; identify a lot by security, acquisition date and share count.
 - `ZLOT.ZINITIALUNITS` versus `ZLATESTUNITS` tells you whether shares have been sold from the lot.
-- `ZLOTMOD` links a lot to the transaction that changed it and carries `ZBEFORECOSTBASIS` / `ZAFTERCOSTBASIS`. Realized gain on a sale is the sale proceeds minus the basis relieved. Use a `LEFT JOIN`: on one file one sale in two thousand had no `ZLOTMOD` row and an inner join dropped it.
+- `ZLOTMOD` links a lot to the transaction that changed it and carries `ZBEFORECOSTBASIS` / `ZAFTERCOSTBASIS`. Realized gain on a sale is the sale proceeds minus the basis relieved. Use a `LEFT JOIN`: on one file one sale in two thousand had no `ZLOTMOD` row and an inner join dropped it. For such a sale the basis is unknown, so the query below leaves `realized_gain` NULL rather than reporting the whole proceeds as gain.
 
 ```sql
 SELECT t.Z_PK AS transaction_id,
        t.ZAMOUNT AS proceeds,
        SUM(m.ZBEFORECOSTBASIS - m.ZAFTERCOSTBASIS) AS basis_relieved,
-       t.ZAMOUNT - COALESCE(SUM(m.ZBEFORECOSTBASIS - m.ZAFTERCOSTBASIS), 0) AS realized_gain
+       t.ZAMOUNT - SUM(m.ZBEFORECOSTBASIS - m.ZAFTERCOSTBASIS) AS realized_gain
 FROM ZTRANSACTION t
 LEFT JOIN ZLOTMOD m ON m.ZTRANSACTION = t.Z_PK
 WHERE t.ZTYPE = 19
