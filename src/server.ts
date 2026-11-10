@@ -141,7 +141,7 @@ export function createServer(getDb: () => Database.Database): McpServer {
         "",
         "## Database auto-detection",
         "- If QUICKEN_DB_PATH is not set, the server auto-detects only when exactly one .quicken bundle exists across ~/Documents, ~/Library/Application Support/Quicken*/Documents (the retail default) and the Mac App Store container.",
-        "- If the user has multiple Quicken files, the server refuses to guess and lists them. Instruct them to set QUICKEN_DB_PATH explicitly:",
+        "- If the user has multiple Quicken files, the server refuses to guess and reports how many it found in each location. Instruct them to set QUICKEN_DB_PATH explicitly:",
         "    claude mcp add quicken -e QUICKEN_DB_PATH=/path/to/YourFile.quicken/data -- npx -y quicken-mac-mcp",
       ].join("\n"),
     }

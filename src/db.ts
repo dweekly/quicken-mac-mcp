@@ -10,7 +10,7 @@
 import Database from "better-sqlite3";
 import { accessSync, constants, existsSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
-import { join, resolve } from "path";
+import { basename, dirname, join, resolve } from "path";
 
 /**
  * Core Data epoch offset: the number of seconds between the Unix epoch
@@ -61,6 +61,22 @@ export function quickenSearchDirectories(): string[] {
 }
 
 /**
+ * A name for a searched directory that is safe to put in an error message.
+ * Error text reaches MCP clients and logs through sanitizeError, which redacts
+ * anything path-shaped, and a real path would carry the user's home folder and
+ * Quicken file name. These labels have neither, and no slash to be redacted.
+ */
+function locationLabel(dir: string): string {
+  if (dir === join(homedir(), "Documents")) return "Documents";
+  if (dir.includes("com.quicken.QuickenAppStore")) return "Mac App Store container";
+  return `Application Support › ${basename(dirname(dir))}`;
+}
+
+const SEARCHED_LOCATIONS =
+  "Documents; Application Support › Quicken (and Quicken Beta or year-suffixed folders); " +
+  "Mac App Store container";
+
+/**
  * Read a directory's entries. A directory that does not exist yields []; one
  * that exists but cannot be read (for example ~/Documents without a Files and
  * Folders grant) throws, because silently skipping it could make detection
@@ -72,7 +88,8 @@ function readDirectoryIfPresent(dir: string): string[] {
   } catch (err: any) {
     if (err?.code === "ENOENT" || err?.code === "ENOTDIR") return [];
     throw new Error(
-      `Cannot read ${dir} (${err?.code ?? err}). Set QUICKEN_DB_PATH to your Quicken database path.`,
+      `Cannot read the ${locationLabel(dir)} folder (${err?.code ?? err}). ` +
+        `Set QUICKEN_DB_PATH to your Quicken database path.`,
       { cause: err }
     );
   }
@@ -88,27 +105,29 @@ function readDirectoryIfPresent(dir: string): string[] {
 export function detectQuickenDb(): string {
   const searched = quickenSearchDirectories();
   const bundles: string[] = [];
+  const foundIn: string[] = [];
 
   for (const dir of searched) {
-    for (const entry of readDirectoryIfPresent(dir)) {
-      if (entry.endsWith(".quicken")) bundles.push(resolve(dir, entry, "data"));
-    }
+    const here = readDirectoryIfPresent(dir).filter((entry) =>
+      entry.endsWith(".quicken")
+    );
+    for (const entry of here) bundles.push(resolve(dir, entry, "data"));
+    if (here.length > 0) foundIn.push(`${here.length} in ${locationLabel(dir)}`);
   }
 
   if (bundles.length === 0) {
     throw new Error(
-      `No .quicken bundles found in any of the usual Quicken locations:\n` +
-        searched.map((d) => `  ${d}`).join("\n") +
-        `\n\nSet the database path when adding the server:\n` +
+      `No .quicken bundles found. Searched: ${SEARCHED_LOCATIONS}.\n\n` +
+        `Set the database path when adding the server:\n` +
         `  claude mcp add quicken -e QUICKEN_DB_PATH=/path/to/YourFile.quicken/data -- npx -y quicken-mac-mcp`
     );
   }
 
   if (bundles.length > 1) {
     throw new Error(
-      `Multiple .quicken bundles found:\n` +
-        bundles.map((b) => `  ${b}`).join("\n") +
-        `\nSet QUICKEN_DB_PATH to the intended Quicken database path.`
+      `Multiple .quicken bundles found (${foundIn.join(", ")}). ` +
+        `Auto-detection will not guess between them. ` +
+        `Set QUICKEN_DB_PATH to the intended Quicken database path.`
     );
   }
 

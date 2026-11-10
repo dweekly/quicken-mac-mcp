@@ -10,7 +10,7 @@
 
 ### Changed
 
-- Database auto-detection (server, CLI, Python probe, CSV exporter, and the live-test status script) now searches the retail/subscription default `~/Library/Application Support/Quicken*/Documents` and the Mac App Store sandbox container as well as `~/Documents`. Previously a file in Quicken's own default location produced "No .quicken bundles found". The not-found error lists every directory searched and the multiple-bundles error lists the bundles.
+- Database auto-detection (server, CLI, Python probe, CSV exporter, and the live-test status script) now searches the retail/subscription default `~/Library/Application Support/Quicken*/Documents` and the Mac App Store sandbox container as well as `~/Documents`. Previously a file in Quicken's own default location produced "No .quicken bundles found". The not-found error names the locations searched, and the multiple-bundles error says how many bundles were found in each; neither includes a file path.
 - A Quicken location that exists but cannot be read (for example `~/Documents` without a Files and Folders grant) now makes auto-detection refuse instead of silently settling on a bundle elsewhere.
 - Documentation no longer states that the data file is always encrypted while Quicken is closed; one install kept it readable, and the probe's `ZACCOUNT` check is the test.
 - The CSV exporter's pre-existing pick-most-recent behaviour is unchanged; it only searches more directories.

@@ -98,7 +98,7 @@ By default, the server auto-detects your Quicken database only when exactly one 
 - `~/Library/Application Support/Quicken*/Documents` (retail/subscription default; `Quicken`, `Quicken Beta`, or a year-suffixed folder)
 - `~/Library/Containers/com.quicken.QuickenAppStore/Data/Library/Application Support/Quicken/Documents` (Mac App Store build)
 
-If multiple bundles exist, it refuses to guess and lists them; set `QUICKEN_DB_PATH` explicitly.
+If multiple bundles exist, it refuses to guess and says how many it found in each location; set `QUICKEN_DB_PATH` explicitly.
 
 ## MCP tools
 

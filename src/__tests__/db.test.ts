@@ -8,6 +8,7 @@ import {
 import { readdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import { sanitizeError } from "../server.js";
 
 // Mock fs for auto-detection tests
 vi.mock("fs", async () => {
@@ -178,9 +179,31 @@ describe("detectQuickenDb", () => {
     expect(() => detectQuickenDb()).toThrow("QUICKEN_DB_PATH");
   });
 
-  it("lists every searched directory in the not-found error", () => {
+  it("names every searched location in the not-found error", () => {
     stubDirectories({});
+    expect(() => detectQuickenDb()).toThrow("Documents");
     expect(() => detectQuickenDb()).toThrow("Application Support");
-    expect(() => detectQuickenDb()).toThrow("com.quicken.QuickenAppStore");
+    expect(() => detectQuickenDb()).toThrow("Mac App Store container");
+  });
+
+  it("reports where multiple bundles are without naming them or the home folder", () => {
+    stubDirectories({
+      Documents: ["My Family 2.quicken", "Other.quicken"],
+      "Library/Application Support": ["Quicken Beta"],
+      "Library/Application Support/Quicken Beta/Documents": ["Beta.quicken"],
+    });
+    let message = "";
+    try {
+      detectQuickenDb();
+    } catch (error: any) {
+      message = String(error.message);
+    }
+    expect(message).toContain("2 in Documents");
+    expect(message).toContain("1 in Application Support › Quicken Beta");
+    expect(message).not.toContain(homedir());
+    expect(message).not.toContain("My Family");
+    expect(message).not.toContain(".quicken/");
+    // Nothing path-shaped is left for the redactor to mangle.
+    expect(sanitizeError(new Error(message))).toBe(message);
   });
 });
