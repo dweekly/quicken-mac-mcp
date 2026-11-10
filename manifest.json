@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "quicken-mac-mcp",
   "display_name": "Quicken For Mac",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Read-only access to your Quicken For Mac financial data — Claude Skill plus MCP server",
   "author": {
     "name": "David Weekly",
@@ -20,7 +20,9 @@
     "entry_point": "dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/index.js"],
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
       "env": {
         "QUICKEN_DB_PATH": "${user_config.database_path}"
       }
@@ -70,7 +72,9 @@
     }
   ],
   "compatibility": {
-    "platforms": ["darwin"],
+    "platforms": [
+      "darwin"
+    ],
     "runtimes": {
       "node": "^22.14.0 || >=23.6.0"
     }
