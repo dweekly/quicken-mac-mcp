@@ -8,6 +8,10 @@
 - The README and website disclaimer named Intuit as the owner of the Quicken trademark; quicken.com now attributes it to Rocket Mortgage, LLC.
 - The README now states the Node.js requirement (22.14 or newer).
 
+### Added
+
+- `docs/schema.md` gains a "Field Semantics and Traps" section (contributed by Als-Pal): investment transaction type codes, soft deletes, why the download archive must not be summed, security identity, lots and cost basis, placeholders, stock splits, and budget-table traps, checked against a second real-world file.
+
 ### Changed
 
 - Database auto-detection (server, CLI, Python probe, CSV exporter, and the live-test status script) now searches the retail/subscription default `~/Library/Application Support/Quicken*/Documents` and the Mac App Store sandbox container as well as `~/Documents`. Previously a file in Quicken's own default location produced "No .quicken bundles found". The not-found error names the locations searched, and the multiple-bundles error says how many bundles were found in each; neither includes a file path.
