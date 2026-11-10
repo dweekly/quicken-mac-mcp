@@ -35,7 +35,7 @@
   "scripts": {
     "build": "tsc",
     "pretest": "node scripts/report-live-test-status.mjs",
-    "version": "node scripts/sync-versions.mjs && git add manifest.json server.json plugin/.claude-plugin/plugin.json",
+    "version": "node scripts/sync-versions.mjs && git add manifest.json server.json plugin/.claude-plugin/plugin.json man/qmac.1 man/quicken-mac-mcp.1",
     "sync:versions": "node scripts/sync-versions.mjs",
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",

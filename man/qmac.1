@@ -1,4 +1,4 @@
-.TH QMAC 1 "May 2026" "qmac v1.5.0" "User Commands"
+.TH QMAC 1 "November 2026" "qmac v1.7.0" "User Commands"
 .SH NAME
 qmac \- Self-documenting CLI and MCP server for Quicken For Mac financial data
 .SH SYNOPSIS
@@ -86,7 +86,7 @@ If set to true, breaks down each month by top-level category.
 Search registered merchant/payee names. Returns payee names sorted by transaction count.
 .TP
 .BI list_portfolio " [\-\-account\-names \fInames\fR]"
-List active investment security units, cost basis, last stored Quicken prices, and gains/losses.
+List investment holdings: units, cost basis, currency, last stored Quicken prices, and gains/losses. Positions with a negative unit count are included.
 .TP
 .BI raw_query " \-\-sql \fIselect_statement\fR"
 Run custom SQLite SELECT queries directly against Quicken's database. Write operations (INSERT, UPDATE, DELETE) are rejected. Result limit capped at 500 rows.

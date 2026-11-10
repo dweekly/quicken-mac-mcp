@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The man pages still said v1.5.0. Their version is now kept in step by `npm version` and guarded by a test.
+- The README and website disclaimer named Intuit as the owner of the Quicken trademark; quicken.com now attributes it to Rocket Mortgage, LLC.
+- The README now states the Node.js requirement (22.14 or newer).
+
 ## 1.7.0
 
 ### Fixed

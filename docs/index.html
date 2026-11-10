@@ -397,7 +397,7 @@
         <div class="sub-card">
           <h3>1. Agent Skill <span class="badge badge-success">Recommended</span></h3>
           <p>
-            Teaches Claude to read your Quicken SQLite database directly using your system's preinstalled <code>sqlite3</code> tool.
+            Teaches Claude to read your Quicken SQLite database directly, read-only, using the <code>sqlite3</code> tool or Python's built-in SQLite support.
           </p>
           <p>
             <strong>No background servers, no module compile errors.</strong> Simply loads the raw database schema and a comprehensive set of query recipes into Claude's prompt context, letting the model construct precise relational queries dynamically.
@@ -421,7 +421,7 @@
     <section class="card">
       <h2>Self-Documenting CLI (<code>qmac</code>) <span class="badge badge-new">New</span></h2>
       <p>
-        In addition to AI integrations, this project now ships with a powerful, zero-dependency local command-line interface named <code>qmac</code>. It allows you to query your Quicken SQLite database directly from your terminal with auto-formatting, type validation, and fallback subcommand help.
+        In addition to AI integrations, this project now ships with a powerful local command-line interface named <code>qmac</code>. It allows you to query your Quicken SQLite database directly from your terminal with auto-formatting, type validation, and fallback subcommand help.
       </p>
       <p>Exposes all prepackaged queries as subcommands, with premium features:</p>
       <ul>
@@ -447,7 +447,7 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
     <section class="card">
       <h2>Sovereign Exporter <span class="badge badge-new">New</span></h2>
       <p>
-        Want to free your multi-decade financial records permanently? This project includes a zero-dependency, pure Python command-line tool that conects to your active Quicken database and parses it into a fully portable, normalised folder package.
+        Want to free your multi-decade financial records permanently? This project includes a zero-dependency, pure Python command-line tool that connects to your active Quicken database and parses it into a fully portable, normalised folder package.
       </p>
       <p>Execute the exporter in one command:</p>
       <pre><code>python3 scripts/export_sovereign_csv.py</code></pre>
@@ -485,11 +485,11 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
             </tr>
             <tr>
               <td><code>spending_by_category</code></td>
-              <td>Aggregates category spending summaries for a designated date range.</td>
+              <td>Aggregates spending by category for a date range: negative splits only, excluding transfers and report-excluded transactions, with uncategorized spending kept as its own row.</td>
             </tr>
             <tr>
               <td><code>spending_over_time</code></td>
-              <td>Monthly cash-flow trends, optionally broken down by category splits.</td>
+              <td>Monthly spending totals with the same exclusions, optionally broken down by category.</td>
             </tr>
             <tr>
               <td><code>search_payees</code></td>
@@ -497,7 +497,7 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
             </tr>
             <tr>
               <td><code>list_portfolio</code></td>
-              <td>Lists active holdings with cost basis, shares, and current price quotes.</td>
+              <td>Lists holdings with cost basis, shares, currency, and stored price quotes, including positions with a negative share count.</td>
             </tr>
             <tr>
               <td><code>raw_query</code></td>
@@ -526,9 +526,17 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
   }
 }</code></pre>
       
+      <h3>Claude Desktop (Bundle)</h3>
       <p>
-        <em>Note: Quicken For Mac must be open and unlocked while your agent runs; Quicken encrypts the SQLite database on disk when the application is closed.</em>
+        Or download the bundle for your Mac (Apple Silicon or Intel) from the <a href="https://github.com/dweekly/quicken-mac-mcp/releases/latest" class="inline-link">latest release</a> and drag it into Claude Desktop.
       </p>
+
+      <h3>Requirements</h3>
+      <ul>
+        <li>Quicken For Mac must be open and unlocked while your agent runs; Quicken encrypts the SQLite database on disk when the application is closed. Tested against Quicken 9.3.1.</li>
+        <li>The MCP server and <code>qmac</code> need Node.js 22.14 or newer. The skill alone needs only Python 3.</li>
+        <li>With more than one Quicken file in <code>~/Documents</code>, the server will not guess: set <code>QUICKEN_DB_PATH</code> to the file's <code>.quicken/data</code> path.</li>
+      </ul>
     </section>
 
     <section class="card">
@@ -546,10 +554,10 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
             <tr><td><code>ZACCOUNT</code></td><td>Accounts, balances, types, and closing statuses.</td></tr>
             <tr><td><code>ZTRANSACTION</code></td><td>Master transaction records (post dates, numbers, payees).</td></tr>
             <tr><td><code>ZCASHFLOWTRANSACTIONENTRY</code></td><td>Relational split entries (amounts, categories, tags).</td></tr>
-            <tr><td><code>ZTAG</code> (Z_ENT=79)</td><td>Hierarchical financial categories (income vs expense splits).</td></tr>
+            <tr><td><code>ZTAG</code> (entity number looked up at runtime)</td><td>Hierarchical financial categories (income vs expense splits).</td></tr>
             <tr><td><code>ZUSERPAYEE</code></td><td>Merchant lists and quick-fill defaults.</td></tr>
             <tr><td><code>ZLOT</code> / <code>ZPOSITION</code></td><td>Tax lots, investment purchases, cost basis.</td></tr>
-            <tr><td><code>ZSECURITY</code></td><td>Public securities (stock symbols, current prices).</td></tr>
+            <tr><td><code>ZSECURITY</code> / <code>ZSECURITYQUOTE</code></td><td>Securities (names, tickers, currency) and their stored price quotes.</td></tr>
           </tbody>
         </table>
       </div>
@@ -562,7 +570,7 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
     <section class="card">
       <h2>Disclaimer</h2>
       <p>
-        This project is an independent, community-developed open-source tool. It is <strong>not</strong> an official Intuit product and is not endorsed by, directly affiliated with, maintained by, or sponsored by Intuit Inc. or any of its subsidiaries. "Quicken" is a registered trademark of Intuit Inc. All product and company names are trademarks or registered trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.
+        This project is an independent, community-developed open-source tool. It is <strong>not</strong> an official Quicken product and is not endorsed by, directly affiliated with, maintained by, or sponsored by Quicken Inc. or the owner of the Quicken trademark. "Quicken" is a registered trademark of Rocket Mortgage, LLC. All product and company names are trademarks or registered trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them.
       </p>
       <p>
         This software is provided "as is," without warranty of any kind. The authors and contributors are not responsible for any damage, data loss, or other issues arising from its use. Always back up your financial database before utilizing local analytics integrations.
