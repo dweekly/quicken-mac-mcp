@@ -264,6 +264,10 @@ def run_sovereign_export(output_dir):
         SELECT s.Z_PK, s.ZPARENT, s.ZCATEGORYTAG, cat.ZNAME as category_name,
                parent_cat.ZNAME as parent_category, s.ZAMOUNT, s.ZNOTE
         FROM ZCASHFLOWTRANSACTIONENTRY s
+        -- Only splits of exported transactions (same ZACCOUNT join as transactions.csv); rows with
+        -- no account (abandoned register entries, scheduled reminders) would be orphan splits.
+        JOIN ZTRANSACTION tx ON s.ZPARENT = tx.Z_PK
+        JOIN ZACCOUNT tx_acct ON tx.ZACCOUNT = tx_acct.Z_PK
         LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ?
         LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
         WHERE s.ZPARENT IS NOT NULL
@@ -362,6 +366,10 @@ def run_sovereign_export(output_dir):
             SELECT jt.{split_col} as split_id, t.ZNAME as tag_name
             FROM {user_tags_table} jt
             JOIN ZTAG t ON jt.{tag_col} = t.Z_PK
+            -- Only tags on exported splits (see transaction_splits.csv).
+            JOIN ZCASHFLOWTRANSACTIONENTRY s ON jt.{split_col} = s.Z_PK
+            JOIN ZTRANSACTION tx ON s.ZPARENT = tx.Z_PK
+            JOIN ZACCOUNT tx_acct ON tx.ZACCOUNT = tx_acct.Z_PK
             WHERE t.Z_ENT = ?
         """
         tag_headers = ["split_id", "tag_name"]
