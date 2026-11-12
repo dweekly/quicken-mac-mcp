@@ -162,18 +162,22 @@ describe("sanitizeError", () => {
 
   it("redacts a quoted path under the home directory in full", () => {
     const msg = `EACCES: permission denied, stat '${homedir()}/Documents/Sample Budget 2024 and 2025.quicken/data'`;
-    expect(sanitizeError(new Error(msg))).toBe("EACCES: permission denied, stat '<path>'");
+    expect(sanitizeError(new Error(msg))).toBe(
+      "EACCES: permission denied, stat '<path>'"
+    );
     const quoted = `cannot open "${homedir()}/Documents/Sample Budget 2024 and 2025.quicken/data"`;
     expect(sanitizeError(new Error(quoted))).toBe('cannot open "<path>"');
   });
 
   it("redacts a very long file name in full", () => {
     const longName = `${"SampleTransactionsExport-".repeat(6)}2026.db`;
-    expect(sanitizeError(new Error(`Output file already exists: /tmp/out/${longName}`))).toBe(
-      "Output file already exists: <path>"
-    );
+    expect(
+      sanitizeError(new Error(`Output file already exists: /tmp/out/${longName}`))
+    ).toBe("Output file already exists: <path>");
     const longDir = "Sample-Folder-Name-".repeat(8) + "End";
-    expect(sanitizeError(new Error(`cannot stat /tmp/${longDir}/data`))).toBe("cannot stat <path>");
+    expect(sanitizeError(new Error(`cannot stat /tmp/${longDir}/data`))).toBe(
+      "cannot stat <path>"
+    );
   });
 
   it("stays fast on a long run of path-like text", () => {

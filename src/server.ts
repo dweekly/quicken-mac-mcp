@@ -92,12 +92,14 @@ const UNQUOTED_PATH = new RegExp(
  */
 export function sanitizeError(err: any): string {
   const msg = redactKnownPaths(String(err?.message ?? err));
-  return msg
-    // The optional "~" matters: redactKnownPaths has already turned the home
-    // directory into "~", so a quoted path under it now starts with "~/".
-    .replace(/'~?\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
-    .replace(/"~?\/[^"]+"/g, '"<path>"') // double-quoted paths
-    .replace(UNQUOTED_PATH, "<path>"); // unquoted paths: single- or multi-segment, ~/-relative, spaces/punctuation/Unicode in names
+  return (
+    msg
+      // The optional "~" matters: redactKnownPaths has already turned the home
+      // directory into "~", so a quoted path under it now starts with "~/".
+      .replace(/'~?\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
+      .replace(/"~?\/[^"]+"/g, '"<path>"') // double-quoted paths
+      .replace(UNQUOTED_PATH, "<path>")
+  ); // unquoted paths: single- or multi-segment, ~/-relative, spaces/punctuation/Unicode in names
 }
 
 /**
