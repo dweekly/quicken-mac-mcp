@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- The CSV/SQLite exporters no longer export splits (or, in the CSV exporter, tags) whose parent transaction was not exported. A `ZTRANSACTION` row with no `ZACCOUNT` (an abandoned register entry, or a Bills & Income reminder) is skipped by the transaction export, but its splits were still written: the SQLite export aborted with `FOREIGN KEY constraint failed`, and the CSV export produced orphan splits. Fixes #55.
 - The man pages still said v1.5.0. Their version is now kept in step by `npm version` and guarded by a test.
 - The README and website disclaimer named Intuit as the owner of the Quicken trademark; quicken.com now attributes it to Rocket Mortgage, LLC.
 - The README now states the Node.js requirement (22.14 or newer).

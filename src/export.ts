@@ -310,7 +310,8 @@ function exportTransactions(
     );
   }
 
-  // Now export splits
+  // Now export splits. Only splits of exported transactions (same ZACCOUNT join as above): rows
+  // with no account, e.g. abandoned register entries, are not exported and would violate the FK.
   const splitRows = src
     .prepare(
       `
@@ -322,6 +323,8 @@ function exportTransactions(
       parent_cat.ZNAME as parent_category,
       ROUND(s.ZAMOUNT, 2) as amount
     FROM ZCASHFLOWTRANSACTIONENTRY s
+    JOIN ZTRANSACTION tx ON s.ZPARENT = tx.Z_PK
+    JOIN ZACCOUNT tx_acct ON tx.ZACCOUNT = tx_acct.Z_PK
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ?
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     WHERE s.ZPARENT IS NOT NULL

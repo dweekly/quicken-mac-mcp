@@ -44,6 +44,8 @@ const FIXTURE_SCHEMA = `
 
 interface FixtureOptions {
   nullParentSplits?: number;
+  /** Splits whose parent ZTRANSACTION has no ZACCOUNT (abandoned register entries, reminders). */
+  accountlessParentSplits?: number;
 }
 
 /**
@@ -102,6 +104,14 @@ function buildFixture(path: string, opts: FixtureOptions = {}): void {
   insertSplit.run(2001, 1000, 12, -25.0);
   insertSplit.run(2002, 1001, 20, 1234.56);
   insertSplit.run(2003, 1002, null, -10.0);
+
+  // Parent rows with no ZACCOUNT are not exported (transactions inner-join accounts), so their
+  // splits must not be either. Quicken leaves such rows behind for abandoned register entries.
+  const accountless = opts.accountlessParentSplits ?? 0;
+  for (let i = 0; i < accountless; i++) {
+    insertTx.run(1100 + i, null, isoToCoreData("2024-08-01"), null, null, null);
+    insertSplit.run(4000 + i, 1100 + i, 11, -7.0);
+  }
 
   const orphans = opts.nullParentSplits ?? 0;
   for (let i = 0; i < orphans; i++) {
@@ -301,6 +311,27 @@ describe("exportDatabase — Bug 1: NULL parent splits filtered", () => {
       .get() as { n: number };
     out.close();
     expect(orphan.n).toBe(0);
+  });
+});
+
+describe("exportDatabase — splits of unexported transactions", () => {
+  it("skips splits whose parent transaction has no account instead of aborting on the FK", () => {
+    buildFixture(srcPath, { accountlessParentSplits: 3 });
+
+    const result = exportDatabase(outPath, srcPath);
+
+    // 3 accountless parents are not exported, so neither are their 3 splits.
+    expect(result.transactions).toBe(3);
+    expect(result.splits).toBe(4);
+
+    const out = new Database(outPath, { readonly: true });
+    const dangling = out
+      .prepare(
+        "SELECT COUNT(*) AS n FROM transaction_splits WHERE transaction_id NOT IN (SELECT id FROM transactions)"
+      )
+      .get() as { n: number };
+    out.close();
+    expect(dangling.n).toBe(0);
   });
 });
 
