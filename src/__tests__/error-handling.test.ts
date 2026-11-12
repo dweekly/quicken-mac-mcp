@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { homedir } from "os";
 import { sanitizeError, formatToolError } from "../server.js";
+import { createDbAccessor } from "../db.js";
 
 describe("sanitizeError", () => {
   const originalDbPath = process.env.QUICKEN_DB_PATH;
@@ -185,6 +186,18 @@ describe("sanitizeError", () => {
     const started = Date.now();
     sanitizeError(new Error(hostile));
     expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it("leaves the missing-bundle advice readable", () => {
+    let message = "";
+    try {
+      createDbAccessor("/nonexistent-sample-bundle.quicken/data")();
+    } catch (error: any) {
+      message = String(error.message);
+    }
+    const shown = sanitizeError(new Error(message));
+    expect(shown).toContain("ends with the file named data inside the bundle");
+    expect(shown).not.toContain("<path>");
   });
 
   it("handles non-Error inputs", () => {

@@ -172,7 +172,7 @@ export function diagnosePath(filePath: string): string {
     if (!existsSync(parent)) {
       hints.push(
         "The parent directory (the .quicken bundle) also does not exist. " +
-          "Check that the QUICKEN_DB_PATH is correct and includes the /data suffix."
+          "Check that the QUICKEN_DB_PATH is correct and ends with the file named data inside the bundle."
       );
     } else {
       hints.push(

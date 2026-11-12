@@ -7,6 +7,7 @@
 - The man pages still said v1.5.0. Their version is now kept in step by `npm version` and guarded by a test.
 - The README and website disclaimer named Intuit as the owner of the Quicken trademark; quicken.com now attributes it to Rocket Mortgage, LLC.
 - The README now states the Node.js requirement (22.14 or newer).
+- Error messages could leak part of a personal file path (contributed by apisani1). The redactor missed paths with one segment, paths starting `~/`, and folder names containing spaces, punctuation or non-English letters, and it mangled URLs. The configured database path and the home directory are now removed by exact match before any pattern matching.
 
 ### Added
 
