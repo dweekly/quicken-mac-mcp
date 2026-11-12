@@ -61,15 +61,16 @@ const SEG = String.raw`[\p{L}\p{N}_.\-+&'()\[\]{}@#$%!=,^]`;
 // A segment may not END on punctuation: that's what keeps a sentence's final
 // period, or a comma between two listed paths, outside the redaction.
 const SEG_END = String.raw`[\p{L}\p{N}_)\]}]`;
-// Chunk lengths are bounded rather than open-ended. Error text can echo
-// caller-supplied SQL, so the nested quantifiers are kept from degrading into
-// pathological backtracking on a long run of segment characters.
-const MID_SEGMENT = String.raw`${SEG}{1,64}(?:[ \t]${SEG}{1,64}){0,3}`;
+// Segment lengths are not capped: a cap would end the match partway through a
+// long file name and leave the rest in plain view. Backtracking stays cheap
+// without one, because a segment character can never be a space or a "/", so
+// there is only one way to split a run of text into segments.
+const MID_SEGMENT = String.raw`${SEG}+(?:[ \t]${SEG}+){0,3}`;
 // Only a segment proven to be mid-path (a following "/") may contain spaces.
 // The final segment can hold punctuation but not spaces: with no following
 // "/" to prove the path continues, a space allowance would swallow trailing
 // prose like "and" in "/foo/bar/baz and /qux".
-const FINAL_SEGMENT = String.raw`${SEG}{0,64}${SEG_END}`;
+const FINAL_SEGMENT = String.raw`${SEG}*${SEG_END}`;
 // Excludes a preceding "/" as well as a preceding word character: without it,
 // the second "/" of a "://" URL scheme separator would itself qualify as a
 // path start (the literal first "/" fails to match on its own, since it's
@@ -92,8 +93,10 @@ const UNQUOTED_PATH = new RegExp(
 export function sanitizeError(err: any): string {
   const msg = redactKnownPaths(String(err?.message ?? err));
   return msg
-    .replace(/'\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
-    .replace(/"\/[^"]+"/g, '"<path>"') // double-quoted paths
+    // The optional "~" matters: redactKnownPaths has already turned the home
+    // directory into "~", so a quoted path under it now starts with "~/".
+    .replace(/'~?\/[^']+'/g, "'<path>'") // single-quoted paths (e.g., native module errors)
+    .replace(/"~?\/[^"]+"/g, '"<path>"') // double-quoted paths
     .replace(UNQUOTED_PATH, "<path>"); // unquoted paths: single- or multi-segment, ~/-relative, spaces/punctuation/Unicode in names
 }
 
