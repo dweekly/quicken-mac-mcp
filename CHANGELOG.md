@@ -12,6 +12,7 @@
 ### Added
 
 - `docs/schema.md` gains a "Field Semantics and Traps" section (contributed by Als-Pal): investment transaction type codes, soft deletes, why the download archive must not be summed, security identity, lots and cost basis, placeholders, stock splits, and budget-table traps, checked against a second real-world file.
+- `query_transactions` rows now include `split_id` (the split entry's `Z_PK`), a stable key so callers can tell split rows apart; `(transaction_id, split_id)` is unique per row. Rows within a transaction are now ordered by `split_id`.
 
 ### Changed
 

@@ -14,6 +14,7 @@ function formatHeader(key: string): string {
     tx_count: "Tx Count",
     transaction_count: "Tx Count",
     transaction_id: "Tx ID",
+    split_id: "Split ID",
     gain_loss: "Gain/Loss",
     gain_loss_pct: "Gain/Loss %",
     is_active: "Active",

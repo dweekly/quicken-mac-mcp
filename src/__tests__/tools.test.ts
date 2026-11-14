@@ -106,6 +106,7 @@ describeWithDb("query_transactions", () => {
     expect(result[0]).toHaveProperty("amount");
     expect(result[0]).toHaveProperty("note");
     expect(result[0]).toHaveProperty("split_note");
+    expect(result[0]).toHaveProperty("split_id");
   });
 
   it("respects limit parameter", () => {
