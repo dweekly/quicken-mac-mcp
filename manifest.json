@@ -48,7 +48,7 @@
     },
     {
       "name": "query_transactions",
-      "description": "Query Quicken transactions with flexible filters. Returns one row per split entry — a single transaction may appear multiple times if it has multiple category splits."
+      "description": "Query Quicken transactions with flexible filters. Returns one row per split entry — a single transaction may appear multiple times if it has multiple category splits. Each row has a stable split_id (null when the transaction has no split entries); (transaction_id, split_id) is unique per row."
     },
     {
       "name": "spending_by_category",

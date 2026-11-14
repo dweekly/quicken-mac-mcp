@@ -108,7 +108,7 @@ These are the eight prepackaged tools the MCP server exposes. The skill covers t
 |------|-------------|
 | `list_accounts` | List all accounts with name, type, and active/closed status. Optional type filter. |
 | `list_categories` | List all category tags with parent hierarchy. Filter by expense/income. |
-| `query_transactions` | Query transactions with filters: date range, account types/names, amount range, payee search, category. Returns one row per split entry, with `note` (transaction-level) and `split_note` (per-split) memos. |
+| `query_transactions` | Query transactions with filters: date range, account types/names, amount range, payee search, category. Returns one row per split entry, with a stable `split_id`, plus `note` (transaction-level) and `split_note` (per-split) memos. |
 | `spending_by_category` | Aggregate negative consumer-spending splits by category, excluding transfers and report-excluded rows and preserving `(Uncategorized)`. |
 | `spending_over_time` | Monthly negative consumer-spending totals with the same exclusions, optionally broken down by category. |
 | `search_payees` | Search payees by name with transaction counts. |

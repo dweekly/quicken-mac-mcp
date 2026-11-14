@@ -12,6 +12,10 @@
  * transactions from truly empty ones. Insight credit:
  * https://gist.github.com/Als-Pal/3fc9c18949c826c207559939e8d9b90a
  *
+ * Each row carries `split_id` (ZCASHFLOWTRANSACTIONENTRY.Z_PK), a stable key for the
+ * split entry; `(transaction_id, split_id)` uniquely identifies a row. It is null for a
+ * transaction with no split entries.
+ *
  * Date conversion: ISO 8601 input dates are converted to Core Data
  * timestamps (seconds since 2001-01-01) for the WHERE clause, and
  * converted back to ISO 8601 in the output.
@@ -87,6 +91,7 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
   const sql = `
     SELECT
       t.Z_PK as transaction_id,
+      s.Z_PK as split_id,
       a.ZNAME as account_name,
       a.ZTYPENAME as account_type,
       p.ZNAME as payee,
@@ -103,7 +108,7 @@ export function queryTransactions(db: Database.Database, args: QueryTransactions
     LEFT JOIN ZTAG cat ON s.ZCATEGORYTAG = cat.Z_PK AND cat.Z_ENT = ${categoryTagEntityId}
     LEFT JOIN ZTAG parent_cat ON cat.ZPARENTCATEGORY = parent_cat.Z_PK
     ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
-    ORDER BY COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) DESC
+    ORDER BY COALESCE(t.ZPOSTEDDATE, t.ZENTEREDDATE) DESC, t.Z_PK, s.Z_PK
     LIMIT ?
   `;
   params.push(limit);

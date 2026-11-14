@@ -31,6 +31,19 @@ describe.each(QUICKEN_LAYOUTS)("spending tool correctness ($label)", (layout) =>
     expect(ids).not.toContain(104);
   });
 
+  it("returns each split row with its split_id, ordered by split_id within a transaction", () => {
+    const rows = queryTransactions(db, {
+      start_date: "2024-01-31",
+      end_date: "2024-01-31",
+      limit: 100,
+    }) as Array<{ transaction_id: number; split_id: number | null }>;
+    const splitIds = rows
+      .filter((row) => row.transaction_id === 100)
+      .map((row) => row.split_id);
+
+    expect(splitIds).toEqual([1000, 1001]);
+  });
+
   it("counts transactions rather than split rows", () => {
     const rows = spendingOverTime(db, {
       start_date: "2024-01-01",

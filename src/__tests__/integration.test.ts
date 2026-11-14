@@ -372,13 +372,23 @@ describeWithDb("transaction data integrity", () => {
     }
   });
 
-  it("transaction_id is unique per row", () => {
-    // Note: transaction_id is NOT unique per result row because of splits,
-    // but the combination of (transaction_id, category, amount) should be
-    const txns = queryTransactions(db, { limit: 200 }) as any[];
-    const keys = txns.map((t) => `${t.transaction_id}|${t.category}|${t.amount}`);
+  it("(transaction_id, split_id) is unique per row", () => {
+    // transaction_id alone is NOT unique per result row because of splits
+    const txns = queryTransactions(db, { limit: 500 }) as any[];
+    const keys = txns.map((t) => `${t.transaction_id}|${t.split_id}`);
     const uniqueKeys = new Set(keys);
     expect(uniqueKeys.size).toBe(keys.length);
+  });
+
+  it("split rows of one transaction have distinct non-null split_ids", () => {
+    const txns = queryTransactions(db, { limit: 500 }) as any[];
+    const byTx = new Map<number, any[]>();
+    for (const t of txns) byTx.set(t.transaction_id, [...(byTx.get(t.transaction_id) ?? []), t]);
+    for (const rows of byTx.values()) {
+      if (rows.length < 2) continue;
+      expect(rows.every((r) => r.split_id !== null)).toBe(true);
+      expect(new Set(rows.map((r) => r.split_id)).size).toBe(rows.length);
+    }
   });
 
   it("split transactions produce multiple rows with same transaction_id", () => {
