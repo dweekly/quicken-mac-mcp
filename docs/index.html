@@ -513,7 +513,8 @@ qmac query-transactions --start-date 2024-01-01 --end-date 2024-12-31 --payee-se
       
       <h3>Claude Code (As a Plugin)</h3>
       <p>Installs both the recommended <code>/quicken</code> skill and the MCP server tools in one step:</p>
-      <pre><code>claude plugin install quicken-mac-mcp</code></pre>
+      <pre><code>claude plugin marketplace add dweekly/quicken-mac-mcp
+claude plugin install quicken@quicken-mac-mcp</code></pre>
 
       <h3>Claude Desktop (Manual Config)</h3>
       <p>Open your Desktop configuration file (<code>~/Library/Application Support/Claude/claude_desktop_config.json</code>) and add:</p>

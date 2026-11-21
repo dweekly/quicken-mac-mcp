@@ -61,6 +61,13 @@ if (
 if (
   updateJson("plugin/.claude-plugin/plugin.json", (plugin) => {
     plugin.version = VERSION;
+    // Pin the bundled MCP server to the same release as the skill.
+    for (const server of Object.values(plugin.mcpServers ?? {})) {
+      if (!Array.isArray(server.args)) continue;
+      server.args = server.args.map((arg) =>
+        /^quicken-mac-mcp@/.test(arg) ? `quicken-mac-mcp@${VERSION}` : arg
+      );
+    }
   })
 ) {
   changed.push("plugin/.claude-plugin/plugin.json");

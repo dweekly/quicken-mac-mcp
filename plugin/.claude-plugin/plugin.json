@@ -4,5 +4,14 @@
   "version": "1.7.0",
   "author": {
     "name": "David Weekly"
+  },
+  "mcpServers": {
+    "quicken": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "quicken-mac-mcp@1.7.0"
+      ]
+    }
   }
 }

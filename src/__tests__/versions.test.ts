@@ -29,7 +29,15 @@ const manifest = readJson<{
 const server = readJson<{ version: string; packages: Array<{ version: string }> }>(
   "server.json"
 );
-const plugin = readJson<{ version: string }>("plugin/.claude-plugin/plugin.json");
+const plugin = readJson<{
+  name: string;
+  version: string;
+  mcpServers?: Record<string, { command: string; args?: string[] }>;
+}>("plugin/.claude-plugin/plugin.json");
+const marketplace = readJson<{
+  name: string;
+  plugins: Array<{ name: string; source: string }>;
+}>(".claude-plugin/marketplace.json");
 const formula = readFileSync(resolve(ROOT, "Formula/qmac.rb"), "utf8");
 
 describe("version consistency", () => {
@@ -57,6 +65,19 @@ describe("version consistency", () => {
 
   it("Claude plugin metadata version matches package.json", () => {
     expect(plugin.version).toBe(pkg.version);
+  });
+
+  it("Claude plugin pins its bundled MCP server to the package version", () => {
+    const server = plugin.mcpServers?.quicken;
+    expect(server?.command).toBe("npx");
+    expect(server?.args).toContain(`quicken-mac-mcp@${pkg.version}`);
+  });
+
+  it("marketplace catalog lists the plugin at its directory", () => {
+    expect(marketplace.name).toBe("quicken-mac-mcp");
+    expect(marketplace.plugins).toContainEqual(
+      expect.objectContaining({ name: plugin.name, source: "./plugin" })
+    );
   });
 
   it("man pages carry the package version", () => {
