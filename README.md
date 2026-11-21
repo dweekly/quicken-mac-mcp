@@ -17,7 +17,7 @@ This repo ships two artifacts that share the same schema knowledge ([`docs/schem
 - **Skill** ([`plugin/skills/quicken/SKILL.md`](plugin/skills/quicken/SKILL.md)) — teaches Claude to probe and read the Quicken SQLite database directly with Python 3's standard-library SQLite support. Its focused [`references/`](plugin/skills/quicken/references) cover balances, cash flow, investments, budgets, tags, and QuickFill rules. Works in Claude Code and any other Claude surface that loads skills. **No native module install or MCP server process.** This is the recommended path.
 - **MCP server** — wraps the same SQL recipes as eight prepackaged tools (`list_accounts`, `query_transactions`, `spending_by_category`, …). Use it when you're working in a non-Claude MCP client (Cursor, Cline, mcp-remote bridges) that can't load skills, or when you'd rather call typed tools than have Claude write SQL.
 
-The Claude Code plugin install (`claude plugin install quicken-mac-mcp`) bundles **both**, with the skill leading and the MCP tools available as shortcuts.
+The Claude Code plugin (see [Install](#install--recommended-claude-code-plugin)) bundles **both**, with the skill leading and the MCP tools available as shortcuts.
 
 ## Requirements
 
@@ -32,11 +32,17 @@ Quicken For Mac stores data in a Core Data SQLite database inside a `.quicken` b
 
 ## Install — recommended (Claude Code, plugin)
 
+This repository is its own plugin marketplace. Add it once, then install the `quicken` plugin from it:
+
 ```bash
-claude plugin install quicken-mac-mcp
+claude plugin marketplace add dweekly/quicken-mac-mcp
 ```
 
-This installs both the `/quicken` skill (recommended path) and the MCP server. Claude will lead with the skill and fall back to the MCP tools when convenient.
+```bash
+claude plugin install quicken@quicken-mac-mcp
+```
+
+This installs both the `/quicken` skill (recommended path) and the MCP server, pinned to the same release. Claude will lead with the skill and fall back to the MCP tools when convenient. The MCP server needs Node.js (see [Requirements](#requirements)); the skill works without it. Run `claude plugin marketplace update quicken-mac-mcp` to pick up new releases.
 
 ## Install — MCP-only paths
 

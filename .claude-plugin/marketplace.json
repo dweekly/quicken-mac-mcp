@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "quicken-mac-mcp",
+  "description": "Read-only access to Quicken For Mac financial data",
+  "owner": {
+    "name": "David Weekly",
+    "url": "https://github.com/dweekly"
+  },
+  "plugins": [
+    {
+      "name": "quicken",
+      "source": "./plugin",
+      "description": "Read-only access to Quicken For Mac financial data: the quicken skill plus the MCP server's prepackaged query tools",
+      "homepage": "https://dweekly.github.io/quicken-mac-mcp/"
+    }
+  ]
+}

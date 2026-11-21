@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- The documented `claude plugin install quicken-mac-mcp` failed with "not found in any configured marketplace" (#31). The repository now ships `.claude-plugin/marketplace.json`, so the plugin installs with `claude plugin marketplace add dweekly/quicken-mac-mcp` followed by `claude plugin install quicken@quicken-mac-mcp`. The README and website show those two commands.
+- The Claude Code plugin contained only the skill, although the README said it bundled the MCP server too. `plugin.json` now declares the server, pinned to the plugin's own release; `npm version` keeps that pin in step and a test guards it.
+
 - The man pages still said v1.5.0. Their version is now kept in step by `npm version` and guarded by a test.
 - The README and website disclaimer named Intuit as the owner of the Quicken trademark; quicken.com now attributes it to Rocket Mortgage, LLC.
 - The README now states the Node.js requirement (22.14 or newer).
